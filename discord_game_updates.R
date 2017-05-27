@@ -13,33 +13,8 @@ last_seen <- readRDS("data/last_seen.Rds")
 # Big O was R 145, G 124, B 6
 colours <- list(REL = 0x7e0000, Gman = 0x000e77, BigO = 0x917c06, Spins = 0x51bf38)
 thumbnails <- list(BigO = "https://i.redd.it/m7lj05c8hcby.png", Spins = "http://i.imgur.com/Vn51r9z.png", REL = "https://i.redd.it/m7lj05c8hcby.png", Gman = "https://i.redd.it/m7lj05c8hcby.png")
-#for testing use hardcoded uuids to ensure a message gets posted
-#last_seen <- list(Spins = "10002f18de",BigO = "10002c2dd2") # to show spin league
-#last_seen <- list(Spins = "10002f2e57",BigO = "10002c2c1d") # to show BigO
 
 league_search_strings <- list(Spins = "Post_Season_Spin", BigO = "The+Big+O")
-
-league_html_results = map(league_search_strings, ~POST(paste0("http://web.cyanide-studio.com/ws/bb2/?league=",.,"&platform=pc&ajax=entries")))
-
-league_tables <- league_entries %>% 
-  map(content) %>% 
-  map(html_table) %>% 
-  map(extract2,1) %>% 
-  map(set_colnames, c("comp","round","h_coach","h_team","h_img","score","a_img","a_team","a_coach")) %>% 
-  map(separate,score,c("h_score","a_score"))
-
-league_uuids <- league_entries %>% 
-  map(content) %>% 
-  map(html_nodes, "[data]") %>% 
-  map(html_attr, "data") %>% 
-  map(unique) %>% 
-  map(as.data.frame) %>% 
-  map(set_names,"uuid")
-
-league_tables %<>% 
-  map2(league_uuids, bind_cols)
-
-map2(league_tables, last_seen, post_message_if_new)
 
 ##
 #Check if md5 hashes are different for leagues
@@ -108,24 +83,43 @@ get_stats <- function(uuid) {
     set_rownames(c("away","home"))
 }
 
+##
+#Post messages to channel
+##
 post_message <- function(g) {
   league = g[['league']]
   #Testing
-  s <- test_stats[g[['uuid']]]
+  s <- test_stats[[g[['uuid']]]]
   #stats <- get_stats(g['uuid'])
   
   #Prepare the fields portion of the Discord embed
-# top bits will be: blank (or 'stat'), Short version of h_team, short a_team  
-# bottom bits will be stats, with 'best' one bolded
+  # top bits will be: blank (or 'stat'), Short version of h_team, short a_team  
+  # bottom bits will be stats, with 'best' one bolded
+  #This is still ugly. Try some knitr::kable style formatting
+  
+  stat_ids <- list(name="Stat",value = paste("TD","CAS","RIP","P/C", sep = "\n"), inline = T)
+  
 
-  embed_fields <- list(
-    list(name = "test", value = "to make sure\nI haven't\nstuffed anything\nup.", inline = T)
+  h_stats <- list(
+    name = g[['h_team']] %>% str_replace_all("[.!]",'') %>%  abbreviate(1) %>% as.character(),
+    value = paste(s['home','touchdowns'], s['home','casualties'], s['home',"dead"],paste(s['home','passes'],s['home',"catches"],sep = "/"), sep = "\n"),
+    inline = T
+    )
+  
+  a_stats <- list(
+    name = g[['a_team']] %>% str_replace_all("[.!]",'') %>%  abbreviate(1) %>% as.character(),
+    value = paste(s['away','touchdowns'], s['away','casualties'], s['away',"dead"],paste(s['away','passes'],s['away',"catches"],sep = "/"), sep = "\n"),
+    inline = T
   )
-
+  
+  embed_fields <- list(
+    stat_ids, h_stats, a_stats
+  )
+  
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
-      description = paste0(g[['h_team']], " V ",g[['a_team']], "\n", g[['comp']]),
+      description = paste0(g[['h_team']], " V ",g[['a_team']], "\n*", g[['comp']],"*"),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=", g[['uuid']]),
       thumbnail = list(url = thumbnails[[league]] ),
       color = colours[[league]],
@@ -135,8 +129,9 @@ post_message <- function(g) {
   )
   
   print(paste("Posting update for",embed[[1]]$title))
+  #print(embed)
   response = POST(webhook, body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
-  
+
   if (response$status_code == 429) { #rate-limited
     wait_time <- content(response)$retry_after
     print(paste("Rate limited, pausing for",wait_time,"seconds."))
@@ -145,10 +140,11 @@ post_message <- function(g) {
   
 }
 
-
-##
-#Post messages to channel
-##
-
 posting_result <- new_games %>% 
   by_row(post_message, .to = "response")
+
+##
+#Update last seen information
+##
+
+
