@@ -12,7 +12,7 @@ last_seen <- readRDS("data/last_seen.Rds")
 # GMAN was R 0, G 14, B 119
 # Big O was R 145, G 124, B 6
 colours <- list(REL = 0x7e0000, Gman = 0x000e77, BigO = 0x917c06, Spins = 0x51bf38)
-thumbnails <- list(BigO = "", Spins = "http://i.imgur.com/Vn51r9z.png")
+thumbnails <- list(BigO = "https://i.redd.it/m7lj05c8hcby.png", Spins = "http://i.imgur.com/Vn51r9z.png", REL = "https://i.redd.it/m7lj05c8hcby.png", Gman = "https://i.redd.it/m7lj05c8hcby.png")
 #for testing use hardcoded uuids to ensure a message gets posted
 #last_seen <- list(Spins = "10002f18de",BigO = "10002c2dd2") # to show spin league
 #last_seen <- list(Spins = "10002f2e57",BigO = "10002c2c1d") # to show BigO
@@ -109,6 +109,7 @@ get_stats <- function(uuid) {
 }
 
 post_message <- function(g) {
+  league = g[['league']]
   #Testing
   s <- test_stats[g[['uuid']]]
   #stats <- get_stats(g['uuid'])
@@ -117,29 +118,37 @@ post_message <- function(g) {
 # top bits will be: blank (or 'stat'), Short version of h_team, short a_team  
 # bottom bits will be stats, with 'best' one bolded
 
-#   embed_fields <- list(
-#     list(name = top_bit, value = bottom_bits, inline = T)
-#   )
-#   
+  embed_fields <- list(
+    list(name = "test", value = "to make sure\nI haven't\nstuffed anything\nup.", inline = T)
+  )
+
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
       description = paste0(g[['h_team']], " V ",g[['a_team']], "\n", g[['comp']]),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=", g[['uuid']]),
-      thumbnail = list(url = thumbnails$g[['league']]),
-      color = colours$g[['league']],
+      thumbnail = list(url = thumbnails[[league]] ),
+      color = colours[[league]],
       #timestamp = Sys.time() %>% lubridate::ymd_hms(tz = "Australia/Sydney"),
       fields = embed_fields
     )
   )
-
-  POST(webhook, body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
- }
+  
+  print(paste("Posting update for",embed[[1]]$title))
+  response = POST(webhook, body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
+  
+  if (response$status_code == 429) { #rate-limited
+    wait_time <- content(response)$retry_after
+    print(paste("Rate limited, pausing for",wait_time,"seconds."))
+    Sys.sleep(wait_time)
+  }
+  
+}
 
 
 ##
 #Post messages to channel
 ##
 
-new_games %>% 
-  by_row(post_message)
+posting_result <- new_games %>% 
+  by_row(post_message, .to = "response")
