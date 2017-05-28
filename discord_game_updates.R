@@ -4,7 +4,7 @@ library(httr)
 library(rvest)
 library(stringr)
 webhook <- "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
-
+log_message = function(message) {print(paste(Sys.time(),message, sep = "\t"))}
 last_seen <- readRDS("data/last_seen.Rds") 
 
 #Colours from Harringzord
@@ -21,6 +21,7 @@ league_search_strings <- list(Spins = "Post_Season_Spin", BigO = "The+Big+O")
 ##
 
 league_html_response <- map(league_search_strings, ~POST(paste0("http://web.cyanide-studio.com/ws/bb2/?league=",.,"&platform=pc&ajax=entries")))
+
 
 check_md5s <- function(old_md5, new_response) {
   new_md5 = new_response %>% content(as = "text") %>% openssl::md5()
@@ -72,15 +73,35 @@ new_games <- map_df(
 ##
 #For new games, gather competition info/game stats
 ##
-get_stats <- function(uuid) {
-  POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=",uuid)) %>% 
+get_stats <- function(uuid, hometeam, awayteam) {
+  keep_stats <- c(TD = "touchdowns", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
+  stat_order <- c("TD", "AVBr","KO","CAS","RIP","PASS","CATCH","INT")
+  
+  conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
+  abbr <- function(name) {
+    name %>% str_replace_all("[.!,']",'') %>%  abbreviate(1)
+  }
+  
+  #Get raw stats run basic conversion
+  stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=",uuid)) %>% 
     content %>% 
     html_table %>% 
     extract2(1) %>% 
-    set_colnames(c("stat","h_stat","a_stat")) %>% 
-    gather(team,value,-stat) %>% 
-    spread(stat,value) %>% 
-    set_rownames(c("away","home"))
+    filter(STAT %in% keep_stats) %>% 
+    mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
+    arrange(STAT)
+  
+  #Filter out stats with no entries (keeping TDs always)
+  filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
+  stats = stats[filter,]
+  
+  #Format it correctly
+  stats %>% 
+    knitr::kable(row.names = F, col.names = c("", abbr(hometeam), abbr(awayteam)), format = "pandoc", align = "lrl") %>% 
+    extract(-2) %>% #remove the underlines
+    paste0(collapse = "\n") %>% 
+    paste0("```R\n",.,"\n```") %>% 
+    as.character()
 }
 
 ##
@@ -89,32 +110,9 @@ get_stats <- function(uuid) {
 post_message <- function(g) {
   league = g[['league']]
   #Testing
-  s <- test_stats[[g[['uuid']]]]
-  #stats <- get_stats(g['uuid'])
+  #s <- test_stats[[g[['uuid']]]]
   
-  #Prepare the fields portion of the Discord embed
-  # top bits will be: blank (or 'stat'), Short version of h_team, short a_team  
-  # bottom bits will be stats, with 'best' one bolded
-  #This is still ugly. Try some knitr::kable style formatting
-  
-  stat_ids <- list(name="Stat",value = paste("TD","CAS","RIP","P/C", sep = "\n"), inline = T)
-  
-
-  h_stats <- list(
-    name = g[['h_team']] %>% str_replace_all("[.!]",'') %>%  abbreviate(1) %>% as.character(),
-    value = paste(s['home','touchdowns'], s['home','casualties'], s['home',"dead"],paste(s['home','passes'],s['home',"catches"],sep = "/"), sep = "\n"),
-    inline = T
-    )
-  
-  a_stats <- list(
-    name = g[['a_team']] %>% str_replace_all("[.!]",'') %>%  abbreviate(1) %>% as.character(),
-    value = paste(s['away','touchdowns'], s['away','casualties'], s['away',"dead"],paste(s['away','passes'],s['away',"catches"],sep = "/"), sep = "\n"),
-    inline = T
-  )
-  
-  embed_fields <- list(
-    stat_ids, h_stats, a_stats
-  )
+  stats <- get_stats(g[['uuid']], g[['h_team']],g[['a_team']])
   
   embed = list(
     list(
@@ -124,11 +122,13 @@ post_message <- function(g) {
       thumbnail = list(url = thumbnails[[league]] ),
       color = colours[[league]],
       #timestamp = Sys.time() %>% lubridate::ymd_hms(tz = "Australia/Sydney"),
-      fields = embed_fields
+      fields = list(
+        list(name = "Game Stats", value = stats, inline = F)
+      )
     )
   )
   
-  print(paste("Posting update for",embed[[1]]$title))
+  log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']]))
   #print(embed)
   response = POST(webhook, body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
 
@@ -138,13 +138,29 @@ post_message <- function(g) {
     Sys.sleep(wait_time)
   }
   
+  log_message(paste("Returned:", response$status_code))
+  
+  return(response$status_code)
 }
 
-posting_result <- new_games %>% 
-  by_row(post_message, .to = "response")
+posting_result = new_games %>% 
+  by_row(post_message, .to = "status_code")
 
 ##
 #Update last seen information
 ##
 
+last_seen$md5 <- league_html_response %>% map(content,as = "text") %>% map(openssl::md5)
 
+for (i in seq_along(nrow(posting_result))) {
+  last_seen$uuid[[posting_result[[i,'league']]]] <- posting_result[[i,'uuid']]
+}
+
+saveRDS(last_seen, "data/last_seen.Rds")
+
+##
+#Utility functions to manipulate last_seen data for testing/debugging etc
+##
+
+clear_md5s <- function() {map(last_seen$md5, inset, "")}
+clear_uuids <- function() {map(last_seen$uuid, inset, "")}
