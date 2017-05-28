@@ -24,7 +24,7 @@ league_html_response <- map(league_search_strings, ~POST(paste0("http://web.cyan
 
 
 check_md5s <- function(old_md5, new_response) {
-  new_md5 = new_response %>% content(as = "text") %>% openssl::md5()
+  new_md5 = new_response %>% content %>% html_table() %>% as.character() %>% openssl::md5()
   new_md5 != old_md5
 }
 
@@ -143,20 +143,24 @@ post_message <- function(g) {
   return(response$status_code)
 }
 
-posting_result = new_games %>% 
-  by_row(post_message, .to = "status_code")
-
+if (nrow(new_games) > 0 ) {
+  posting_result <- new_games %>% 
+    by_row(post_message, .to = "status_code")
+} else {
+  posting_result <- tibble()
+}
 ##
 #Update last seen information
 ##
 
-last_seen$md5 <- league_html_response %>% map(content,as = "text") %>% map(openssl::md5)
+last_seen$md5 <- map(league_html_response, ~content(.) %>% html_table() %>% as.character() %>% openssl::md5()) 
 
-for (i in seq_along(nrow(posting_result))) {
-  last_seen$uuid[[posting_result[[i,'league']]]] <- posting_result[[i,'uuid']]
+if (nrow(posting_result) > 0) {
+  for (i in rev(seq_along(nrow(posting_result)))) { # use reversed sequence to go from bottom to top
+    last_seen$uuid[[posting_result[[i,'league']]]] <- posting_result[[i,'uuid']]
+  }
 }
-
-saveRDS(last_seen, "data/last_seen.Rds")
+saveRDS(last_seen, "./data/last_seen.Rds")
 
 ##
 #Utility functions to manipulate last_seen data for testing/debugging etc
