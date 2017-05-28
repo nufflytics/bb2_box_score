@@ -1,8 +1,8 @@
-library(tidyverse)
-library(magrittr)
-library(httr)
-library(rvest)
-library(stringr)
+suppressMessages(library(tidyverse))
+suppressMessages(library(magrittr))
+suppressMessages(library(httr))
+suppressMessages(library(rvest))
+suppressMessages(library(stringr))
 webhook <- "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
 log_message = function(message) {print(paste(Sys.time(),message, sep = "\t"))}
 last_seen <- readRDS("data/last_seen.Rds") 
