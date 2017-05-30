@@ -1,18 +1,31 @@
 suppressMessages(library(tidyverse))
+suppressMessages(library(purrrlyr))
 suppressMessages(library(magrittr))
 suppressMessages(library(httr))
 suppressMessages(library(rvest))
 suppressMessages(library(stringr))
-webhook <- "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
-log_message = function(message) {print(paste(Sys.time(),message, sep = "\t"))}
-last_seen <- readRDS("data/last_seen.Rds") 
 
-#Colours from Harringzord
-# REL was R 126, G 0, B 0
-# GMAN was R 0, G 14, B 119
-# Big O was R 145, G 124, B 6
-colours <- list(REL = 0x7e0000, Gman = 0x000e77, BigO = 0x917c06, Spins = 0x51bf38)
-thumbnails <- list(BigO = "https://i.redd.it/m7lj05c8hcby.png", Spins = "http://i.imgur.com/Vn51r9z.png", REL = "https://i.redd.it/m7lj05c8hcby.png", Gman = "https://i.redd.it/m7lj05c8hcby.png")
+#Setup
+last_seen <- readRDS("data/last_seen.Rds") 
+log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
+
+webhook <- list(
+  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
+)
+colours <- list(
+  REL = 0x7e0000, 
+  Gman = 0x000e77, 
+  BigO = 0x917c06, 
+  Spins = 0x51bf38
+  )
+
+thumbnails <- list(
+  BigO = "https://i.redd.it/m7lj05c8hcby.png", 
+  Spins = "http://i.imgur.com/Vn51r9z.png", 
+  REL = "https://i.redd.it/m7lj05c8hcby.png", 
+  Gman = "https://i.redd.it/m7lj05c8hcby.png"
+  )
 
 league_search_strings <- list(Spins = "Post_Season_Spin", BigO = "The+Big+O")
 
@@ -74,13 +87,10 @@ new_games <- map_df(
 #For new games, gather competition info/game stats
 ##
 get_stats <- function(uuid, hometeam, awayteam) {
-  keep_stats <- c(TD = "touchdowns", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
-  stat_order <- c("TD", "AVBr","KO","CAS","RIP","PASS","CATCH","INT")
+  keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
+  stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
   
   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
-  abbr <- function(name) {
-    name %>% str_replace_all("[.!,']",'') %>%  abbreviate(1)
-  }
   
   #Get raw stats run basic conversion
   stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=",uuid)) %>% 
@@ -89,13 +99,27 @@ get_stats <- function(uuid, hometeam, awayteam) {
     extract2(1) %>% 
     filter(STAT %in% keep_stats) %>% 
     mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
-    arrange(STAT)
+    arrange(STAT) %>% 
+    set_colnames(c("STAT","home","away"))
+  
+  #Combine pass/catch stats for if they are needed
+  pass_catch = data_frame(STAT = "P/C", home = paste0(stats[8,2],"/",stats[9,2]), away = paste0(stats[8,3],"/",stats[9,3]))
   
   #Filter out stats with no entries (keeping TDs always)
   filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
   stats = stats[filter,]
   
+  if (any(c("PASS","CATCH") %in% stats$STAT)) {
+    stats %<>% mutate_all(as.character) %>% 
+      filter(!STAT %in% c("PASS","CATCH")) %>% 
+      bind_rows(pass_catch)
+  }
+  
   #Format it correctly
+  abbr <- function(name) {
+    name %>% str_replace_all("[_]"," ") %>%  str_replace_all("[.!,']",'') %>%  abbreviate(1)
+  }
+  
   stats %>% 
     knitr::kable(row.names = F, col.names = c("", abbr(hometeam), abbr(awayteam)), format = "pandoc", align = "lrl") %>% 
     extract(-2) %>% #remove the underlines
@@ -130,7 +154,7 @@ post_message <- function(g) {
   
   log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']]))
   #print(embed)
-  response = POST(webhook, body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
+  response = POST(webhook[[g[['league']]]], body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
 
   if (response$status_code == 429) { #rate-limited
     wait_time <- content(response)$retry_after
