@@ -1,4 +1,5 @@
 suppressMessages(library(tidyverse))
+suppressMessages(library(purrrlyr))
 suppressMessages(library(magrittr))
 suppressMessages(library(httr))
 suppressMessages(library(rvest))
