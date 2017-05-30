@@ -13,7 +13,6 @@ webhook <- list(
   Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
   BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
 )
-
 colours <- list(
   REL = 0x7e0000, 
   Gman = 0x000e77, 
@@ -104,7 +103,7 @@ get_stats <- function(uuid, hometeam, awayteam) {
     set_colnames(c("STAT","home","away"))
   
   #Combine pass/catch stats for if they are needed
-  pass_catch = data_frame(STAT = "P/C", home = paste0(stats[7,2],"/",stats[8,2]), away = paste0(stats[7,3],"/",stats[8,3]))
+  pass_catch = data_frame(STAT = "P/C", home = paste0(stats[8,2],"/",stats[9,2]), away = paste0(stats[8,3],"/",stats[9,3]))
   
   #Filter out stats with no entries (keeping TDs always)
   filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
