@@ -49,22 +49,33 @@ leagues_with_new_data <- map2_lgl(last_seen$md5, league_html_response, check_md5
 #For leagues that pass above, find out which game uuids are new
 ##
 
+numeric_uuid = function(uuid) {as.numeric(paste0("0x",uuid))}
+
 #First, build up game info table, since we already have the data from the request
 get_league_data <- function(league_response) {
   response_content <- content(league_response) 
   
+  #Parse basic table information
   league_games <- response_content %>% 
     html_table %>% 
     extract2(1) %>% # Get first html table in response
     set_colnames(c("comp","round","h_coach","h_team","h_img","score","a_img","a_team","a_coach")) %>% 
     separate(score,c("h_score","a_score"))
   
+  #Add uuids from the [data] attribute of html nodes
   league_games$uuid <- response_content %>% 
     html_nodes("[data]") %>% 
     html_attr("data") %>% 
     unique
   
-  league_games
+  # Perform final conversions (filtering for correct leagues -- thanks REL, getting numeric uuids, etc)
+  league_games %>% 
+    mutate(ID = numeric_uuid(uuid)) 
+    
+    #Can't use until no longer monitoring spin league due to different competition naming system
+    #...                             %>% 
+    #filter(grepl("Season 6", comp)) %>% 
+    #mutate(comp = str_replace_all("Season 6 ","",comp))
 }
 
 
@@ -74,7 +85,7 @@ league_data <- map(leagues_with_new_data, ~ get_league_data(league_html_response
 # Then, filter data based on which games come after (above) the last seen uuid
 filter_league_table <- function(league_table, last_game, league) {
   league_table %>% 
-    filter(cumsum(uuid %in% last_game) == 0) %>% # cumsum gives 0 down to old uuid, then 1
+    filter(ID > numeric_uuid(last_seen$uuid[[league]])) %>% # Assume uuid are assigned in increasing order (appears to be the case)
     mutate(league = league) # adds league name for channel identification
 }
 
