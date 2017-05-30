@@ -74,13 +74,10 @@ new_games <- map_df(
 #For new games, gather competition info/game stats
 ##
 get_stats <- function(uuid, hometeam, awayteam) {
-  keep_stats <- c(TD = "touchdowns", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
-  stat_order <- c("TD", "AVBr","KO","CAS","RIP","PASS","CATCH","INT")
+  keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
+  stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
   
   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
-  abbr <- function(name) {
-    name %>% str_replace_all("[.!,']",'') %>%  abbreviate(1)
-  }
   
   #Get raw stats run basic conversion
   stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=",uuid)) %>% 
@@ -89,13 +86,27 @@ get_stats <- function(uuid, hometeam, awayteam) {
     extract2(1) %>% 
     filter(STAT %in% keep_stats) %>% 
     mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
-    arrange(STAT)
+    arrange(STAT) %>% 
+    set_colnames(c("STAT","home","away"))
+  
+  #Combine pass/catch stats for if they are needed
+  pass_catch = data_frame(STAT = "P/C", home = paste0(stats[7,2],"/",stats[8,2]), away = paste0(stats[7,3],"/",stats[8,3]))
   
   #Filter out stats with no entries (keeping TDs always)
   filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
   stats = stats[filter,]
   
+  if (any(c("PASS","CATCH") %in% stats$STAT)) {
+    stats %<>% mutate_all(as.character) %>% 
+      filter(!STAT %in% c("PASS","CATCH")) %>% 
+      bind_rows(pass_catch)
+  }
+  
   #Format it correctly
+  abbr <- function(name) {
+    name %>% str_replace_all("[_]"," ") %>%  str_replace_all("[.!,']",'') %>%  abbreviate(1)
+  }
+  
   stats %>% 
     knitr::kable(row.names = F, col.names = c("", abbr(hometeam), abbr(awayteam)), format = "pandoc", align = "lrl") %>% 
     extract(-2) %>% #remove the underlines
