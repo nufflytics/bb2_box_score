@@ -4,16 +4,29 @@ suppressMessages(library(magrittr))
 suppressMessages(library(httr))
 suppressMessages(library(rvest))
 suppressMessages(library(stringr))
-webhook <- "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
-log_message = function(message) {print(paste(Sys.time(),message, sep = "\t"))}
-last_seen <- readRDS("data/last_seen.Rds") 
 
-#Colours from Harringzord
-# REL was R 126, G 0, B 0
-# GMAN was R 0, G 14, B 119
-# Big O was R 145, G 124, B 6
-colours <- list(REL = 0x7e0000, Gman = 0x000e77, BigO = 0x917c06, Spins = 0x51bf38)
-thumbnails <- list(BigO = "https://i.redd.it/m7lj05c8hcby.png", Spins = "http://i.imgur.com/Vn51r9z.png", REL = "https://i.redd.it/m7lj05c8hcby.png", Gman = "https://i.redd.it/m7lj05c8hcby.png")
+#Setup
+last_seen <- readRDS("data/last_seen.Rds") 
+log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
+
+webhook <- list(
+  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
+)
+
+colours <- list(
+  REL = 0x7e0000, 
+  Gman = 0x000e77, 
+  BigO = 0x917c06, 
+  Spins = 0x51bf38
+  )
+
+thumbnails <- list(
+  BigO = "https://i.redd.it/m7lj05c8hcby.png", 
+  Spins = "http://i.imgur.com/Vn51r9z.png", 
+  REL = "https://i.redd.it/m7lj05c8hcby.png", 
+  Gman = "https://i.redd.it/m7lj05c8hcby.png"
+  )
 
 league_search_strings <- list(Spins = "Post_Season_Spin", BigO = "The+Big+O")
 
@@ -142,7 +155,7 @@ post_message <- function(g) {
   
   log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']]))
   #print(embed)
-  response = POST(webhook, body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
+  response = POST(webhook[[g[['league']]]], body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
 
   if (response$status_code == 429) { #rate-limited
     wait_time <- content(response)$retry_after
