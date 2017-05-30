@@ -120,8 +120,9 @@ get_stats <- function(uuid, hometeam, awayteam) {
     name %>% str_replace_all("[_]"," ") %>%  str_replace_all("[.!,']",'') %>%  abbreviate(1)
   }
   
+  #Have to pad away team name to prevent ugly linebreaks
   stats %>% 
-    knitr::kable(row.names = F, col.names = c("", abbr(hometeam), abbr(awayteam)), format = "pandoc", align = "lrl") %>% 
+    knitr::kable(row.names = F, col.names = c("", abbr(hometeam), str_c(abbr(awayteam),"    ")), format = "pandoc", align = "lrl") %>% 
     extract(-2) %>% #remove the underlines
     paste0(collapse = "\n") %>% 
     paste0("```R\n",.,"\n```") %>% 

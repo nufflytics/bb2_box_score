@@ -4,4 +4,4 @@
 .Ruserdata
 *.Rproj
 *.DS_Store
-data/log.txt
+data/*
