@@ -32,7 +32,7 @@ thumbnails <- list(
 league_search_strings <- list(
   #Spins = "Post_Season_Spin", 
   REL = "REL",
-  Gman = "Gman",
+  Gman = "Gman+Cup",
   BigO = "The+Big+O"
 )
 
