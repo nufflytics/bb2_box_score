@@ -10,30 +10,30 @@ last_seen <- readRDS("data/last_seen.Rds")
 log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
 
 webhook <- list(
-  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+#  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
   Gman = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
+  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
 )
 colours <- list(
   REL = 0x7e0000, 
   Gman = 0x000e77, 
-  BigO = 0x917c06, 
-  Spins = 0x51bf38
+  BigO = 0x917c06
+#  Spins = 0x51bf38
 )
 
 thumbnails <- list(
-  BigO = "http://www.nufflytics.com/img/main/BigO_s.png", 
-  Spins = "http://www.nufflytics.com/img/main/REBBL.png", 
+#  Spins = "http://www.nufflytics.com/img/main/REBBL.png", 
   REL = "http://www.nufflytics.com/img/main/REL_s.png", 
-  Gman = "http://www.nufflytics.com/img/main/Gman_s.png"
+  Gman = "http://www.nufflytics.com/img/main/Gman_s.png",
+  BigO = "http://www.nufflytics.com/img/main/BigO_s.png" 
 )
 
 league_search_strings <- list(
-  Spins = "Post_Season_Spin", 
-  BigO = "The+Big+O",
+  #Spins = "Post_Season_Spin", 
   REL = "REL",
-  Gman = "Gman"
+  Gman = "Gman",
+  BigO = "The+Big+O"
 )
 
 ##
@@ -56,8 +56,6 @@ leagues_with_new_data <- map2_lgl(last_seen$md5, league_html_response, check_md5
 #For leagues that pass above, find out which game uuids are new
 ##
 
-numeric_uuid = function(uuid) {as.numeric(paste0("0x",uuid))}
-
 #First, build up game info table, since we already have the data from the request
 get_league_data <- function(league_response) {
   response_content <- content(league_response) 
@@ -67,22 +65,24 @@ get_league_data <- function(league_response) {
     html_table %>% 
     extract2(1) %>% # Get first html table in response
     set_colnames(c("comp","round","h_coach","h_team","h_img","score","a_img","a_team","a_coach")) %>% 
-    separate(score,c("h_score","a_score"))
+    separate(score,c("h_score","a_score")) %>% 
+    filter(!is.na(round)) # remove competition headers
   
   #Add uuids from the [data] attribute of html nodes
   league_games$uuid <- response_content %>% 
     html_nodes("[data]") %>% 
     html_attr("data") %>% 
-    unique
+    extract(seq(1,length(.),by=10)) %>% # have the uuid listed 10 times per table row, so just take one
+    str_replace_all("^1","") # strip initial 1 from uuid so unrecorded games are 0
   
   # Perform final conversions (filtering for correct leagues -- thanks REL, getting numeric uuids, etc)
   league_games %>% 
-    mutate(ID = numeric_uuid(uuid)) 
-    
-    #Can't use until no longer monitoring spin league due to different competition naming system
-    #...                             %>% 
-    #filter(grepl("Season 6", comp)) %>% 
-    #mutate(comp = str_replace_all("Season 6 ","",comp))
+    mutate(ID = strtoi(uuid, base = 16)) 
+  
+  #Can't use until no longer monitoring spin league due to different competition naming system
+  #...                             %>% 
+  #filter(grepl("Season 6", comp)) %>% 
+  #mutate(comp = str_replace_all("Season 6 ","",comp))
 }
 
 
@@ -92,26 +92,27 @@ league_data <- map(leagues_with_new_data, ~ get_league_data(league_html_response
 # Then, filter data based on which games come after (above) the last seen uuid
 filter_league_table <- function(league_table, last_game, league) {
   league_table %>% 
-    filter(ID > numeric_uuid(last_seen$uuid[[league]])) %>% # Assume uuid are assigned in increasing order (appears to be the case)
+    filter(ID > strtoi(last_seen$uuid[[league]], base=16)) %>% # Assume uuid are assigned in increasing order (appears to be the case)
     mutate(league = league) # adds league name for channel identification
 }
 
 new_games <- map_df(
   leagues_with_new_data, 
   ~filter_league_table(league_data[[.]],last_seen[['uuid']][[.]], .)
-  )
+)
 
 ##
 #For new games, gather competition info/game stats
 ##
 get_stats <- function(uuid, hometeam, awayteam) {
+
   keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
   stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
   
   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
   
   #Get raw stats run basic conversion
-  stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=",uuid)) %>% 
+  stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=1",uuid)) %>% #replacing leading 1 in uuid for url
     content %>% 
     html_table %>% 
     extract2(1) %>% 
