@@ -13,7 +13,7 @@ webhook <- list(
 #  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
   REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
   Gman = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
+  BigO = "https://discordapp.com/api/webhooks/319787270091571201/zUhBIg2ASR-mZSEhWY3hJ2fEa50EQkPWDpW3kCzhZh3XjF_oPxNc-oZ5NmhP8_b0UUkg"
 )
 colours <- list(
   REL = 0x7e0000, 
