@@ -11,23 +11,30 @@ log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\
 
 webhook <- list(
   Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
+  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  Gman = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
 )
 colours <- list(
   REL = 0x7e0000, 
   Gman = 0x000e77, 
   BigO = 0x917c06, 
   Spins = 0x51bf38
-  )
+)
 
 thumbnails <- list(
-  BigO = "https://i.redd.it/m7lj05c8hcby.png", 
-  Spins = "http://i.imgur.com/Vn51r9z.png", 
-  REL = "https://i.redd.it/m7lj05c8hcby.png", 
-  Gman = "https://i.redd.it/m7lj05c8hcby.png"
-  )
+  BigO = "http://www.nufflytics.com/img/main/BigO_s.png", 
+  Spins = "http://www.nufflytics.com/img/main/REBBL.png", 
+  REL = "http://www.nufflytics.com/img/main/REL_s.png", 
+  Gman = "http://www.nufflytics.com/img/main/Gman_s.png"
+)
 
-league_search_strings <- list(Spins = "Post_Season_Spin", BigO = "The+Big+O")
+league_search_strings <- list(
+  Spins = "Post_Season_Spin", 
+  BigO = "The+Big+O",
+  REL = "REL",
+  Gman = "Gman"
+)
 
 ##
 #Check if md5 hashes are different for leagues
@@ -166,8 +173,8 @@ post_message <- function(g) {
   
   log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']]))
   #print(embed)
-  response = POST(webhook[[g[['league']]]], body = list(username = "REBBL Updates", avatar_url = "https://fullmetalcos.teemill.co.uk/uploaded/thumbnails/B64-WEjBTk_10057021_autox120.png", embeds = embed),encode = "json")
-
+  response = POST(webhook[[g[['league']]]], body = list(username = paste0(g[['league']]," Updates"), embeds = embed),encode = "json")
+  
   if (response$status_code == 429) { #rate-limited
     wait_time <- content(response)$retry_after
     print(paste("Rate limited, pausing for",wait_time,"seconds."))
