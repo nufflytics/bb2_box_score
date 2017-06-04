@@ -11,7 +11,7 @@ log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\
 
 webhook <- list(
 #  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  REL = "https://discordapp.com/api/webhooks/320011672771231745/w6JguFRw1vie6Yo1dsqFd0KfntthRW1bDrBbBc2ZjgPcd_EtkYU9_tJGeJcwrX9fMw4W",
   Gman = "https://discordapp.com/api/webhooks/319922330300186625/e0GYendlxMtq6PGyq72WsdhlmByR_5mxo_xmoWBqaMkbUt2uQ8RHChToDCVv7f5pFI5p",
   BigO = "https://discordapp.com/api/webhooks/319787270091571201/zUhBIg2ASR-mZSEhWY3hJ2fEa50EQkPWDpW3kCzhZh3XjF_oPxNc-oZ5NmhP8_b0UUkg"
 )
