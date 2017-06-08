@@ -11,13 +11,6 @@ log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\
 load("data/webhook.Rda")
 load("data/last_seen.Rda")
 
-#webhooks for testing in private server
-webhook <- list(
-  REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  Gman = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
-)
-
 colours <- list(
   REL = 0x7e0000, 
   Gman = 0x000e77, 
