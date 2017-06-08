@@ -29,7 +29,7 @@ league_search_strings <- list(
   #Spins = "Post_Season_Spin", 
   REL = str_c("REL>Season+6+Div+",1:7),
   Gman = str_c("Gman+Cup>Season+6+Div+", 1:5),
-  BigO = str_c("The+Big+O>Season+6+Div+", 1:3)
+  BigO = str_c("The+Big+O>Season+6")
 )
 
 ##
