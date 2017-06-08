@@ -5,16 +5,19 @@ suppressMessages(library(httr))
 suppressMessages(library(rvest))
 suppressMessages(library(stringr))
 
-#Setup
-last_seen <- readRDS("data/last_seen.Rds") 
+##Setup
 log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
+#load webhook info and last processed game from file
+load("data/webhook.Rda")
+load("data/last_seen.Rda")
 
+#webhooks for testing in private server
 webhook <- list(
-#  Spins = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
-  REL = "https://discordapp.com/api/webhooks/320011672771231745/w6JguFRw1vie6Yo1dsqFd0KfntthRW1bDrBbBc2ZjgPcd_EtkYU9_tJGeJcwrX9fMw4W",
-  Gman = "https://discordapp.com/api/webhooks/319922330300186625/e0GYendlxMtq6PGyq72WsdhlmByR_5mxo_xmoWBqaMkbUt2uQ8RHChToDCVv7f5pFI5p",
-  BigO = "https://discordapp.com/api/webhooks/319787270091571201/zUhBIg2ASR-mZSEhWY3hJ2fEa50EQkPWDpW3kCzhZh3XjF_oPxNc-oZ5NmhP8_b0UUkg"
+  REL = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  Gman = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ",
+  BigO = "https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"
 )
+
 colours <- list(
   REL = 0x7e0000, 
   Gman = 0x000e77, 
@@ -31,29 +34,23 @@ thumbnails <- list(
 
 league_search_strings <- list(
   #Spins = "Post_Season_Spin", 
-  REL = "REL",
-  Gman = "Gman+Cup",
-  BigO = "The+Big+O"
+  REL = str_c("REL>Season+6+Div+",1:7),
+  Gman = str_c("Gman+Cup>Season+6+Div+", 1:5),
+  BigO = str_c("The+Big+O>Season+6+Div+", 1:3)
 )
 
 ##
-#Check if md5 hashes are different for leagues
+#Get game data for all leagues
 ##
-
-league_html_response <- map(league_search_strings, ~POST(paste0("http://web.cyanide-studio.com/ws/bb2/?league=",.,"&platform=pc&ajax=entries")))
-
-
-check_md5s <- function(old_md5, new_response) {
-  new_md5 = new_response %>% content %>% html_table() %>% as.character() %>% openssl::md5()
-  new_md5 != old_md5
+api_query <- function(search_strings) {
+  map(search_strings, ~POST(paste0("http://web.cyanide-studio.com/ws/bb2/?league=",.,"&platform=pc&ajax=entries")))
 }
 
-leagues_with_new_data <- map2_lgl(last_seen$md5, league_html_response, check_md5s) %>% 
-  extract( . == TRUE ) %>% 
-  names()
+league_html_response <- map(league_search_strings, api_query)
+
 
 ##
-#For leagues that pass above, find out which game uuids are new
+#Find out which game uuids are new
 ##
 
 #First, build up game info table, since we already have the data from the request
@@ -78,27 +75,21 @@ get_league_data <- function(league_response) {
   # Perform final conversions (filtering for correct leagues -- thanks REL, getting numeric uuids, etc)
   league_games %>% 
     mutate(ID = strtoi(uuid, base = 16)) 
-  
-  #Can't use until no longer monitoring spin league due to different competition naming system
-  #...                             %>% 
-  #filter(grepl("Season 6", comp)) %>% 
-  #mutate(comp = str_replace_all("Season 6 ","",comp))
 }
 
-
-league_data <- map(leagues_with_new_data, ~ get_league_data(league_html_response[[.]])) %>% 
-  set_names(leagues_with_new_data)
+#For each league, process the division data into a df and bind them all together
+league_data <- map(league_html_response, ~ map_df(.,get_league_data))
 
 # Then, filter data based on which games come after (above) the last seen uuid
 filter_league_table <- function(league_table, last_game, league) {
   league_table %>% 
-    filter(ID > strtoi(last_seen$uuid[[league]], base=16)) %>% # Assume uuid are assigned in increasing order (appears to be the case)
+    filter(ID > strtoi(last_game, base=16)) %>% # Assume uuid are assigned in increasing order (appears to be the case)
     mutate(league = league) # adds league name for channel identification
 }
 
 new_games <- map_df(
-  leagues_with_new_data, 
-  ~filter_league_table(league_data[[.]],last_seen[['uuid']][[.]], .)
+  c("REL","Gman","BigO"), 
+  ~filter_league_table(league_data[[.]],last_seen[[.]], .)
 )
 
 ##
@@ -111,11 +102,18 @@ get_stats <- function(uuid, hometeam, awayteam) {
   
   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
   
-  #Get raw stats run basic conversion
+  #Get raw stats
   stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=1",uuid)) %>% #replacing leading 1 in uuid for url
     content %>% 
     html_table %>% 
-    extract2(1) %>% 
+    extract2(1) 
+  
+  #Check for admin concession by seeing if home team gets 1 MVP
+  was_completed <- stats %>% filter(STAT == "mvp") %>% extract2(2) %>% magrittr::equals(1)
+  if (!was_completed) return(NULL)
+  
+  #filter and convert
+  stats <- stats %>% 
     filter(STAT %in% keep_stats) %>% 
     mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
     arrange(STAT) %>% 
@@ -139,7 +137,7 @@ get_stats <- function(uuid, hometeam, awayteam) {
     name %>% str_replace_all("[_]"," ") %>%  str_replace_all("[.!,'()]",'') %>%  abbreviate(1)
   }
   
-  #Have to pad away team name to prevent ugly linebreaks
+  #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
   stats %>% 
     knitr::kable(row.names = F, col.names = c("", abbr(hometeam), str_c(abbr(awayteam),"    ")), format = "pandoc", align = "lrl") %>% 
     extract(-2) %>% #remove the underlines
@@ -153,15 +151,16 @@ get_stats <- function(uuid, hometeam, awayteam) {
 ##
 post_message <- function(g) {
   league = g[['league']]
-  #Testing
-  #s <- test_stats[[g[['uuid']]]]
   
   stats <- get_stats(g[['uuid']], g[['h_team']],g[['a_team']])
+  
+  #stats will return null if came conceeded. Don't post those.
+  if (is.null(stats)) return(NULL)
   
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
-      description = paste0(g[['h_team']], " V ",g[['a_team']], "\n*", g[['comp']],"*"),
+      description = paste0("**",g[['h_team']], "** V **",g[['a_team']], "**\n*", g[['comp']],"*"),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=", g[['uuid']]),
       thumbnail = list(url = thumbnails[[league]] ),
       color = colours[[league]],
@@ -193,22 +192,17 @@ if (nrow(new_games) > 0 ) {
 } else {
   posting_result <- tibble()
 }
+
 ##
 #Update last seen information
 ##
-
-last_seen$md5 <- map(league_html_response, ~content(.) %>% html_table() %>% as.character() %>% openssl::md5()) 
-
 if (nrow(posting_result) > 0) {
-  for (i in rev(seq_along(nrow(posting_result)))) { # use reversed sequence to go from bottom to top
-    last_seen$uuid[[posting_result[[i,'league']]]] <- posting_result[[i,'uuid']]
-  }
+  most_recent <- posting_result %>% 
+    filter(status_code == '204') %>% 
+    group_by(league) %>% 
+    filter(ID == max(ID))
+  
+  last_seen[most_recent$league] <- most_recent$uuid
 }
-saveRDS(last_seen, "./data/last_seen.Rds")
 
-##
-#Utility functions to manipulate last_seen data for testing/debugging etc
-##
-
-clear_md5s <- function() {map(last_seen$md5, inset, "")}
-clear_uuids <- function() {map(last_seen$uuid, inset, "")}
+save(last_seen, file = "./data/last_seen.Rda")
