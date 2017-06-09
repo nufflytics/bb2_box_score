@@ -101,9 +101,9 @@ get_stats <- function(uuid, hometeam, awayteam) {
     html_table %>% 
     extract2(1) 
   
-  #Check for admin concession by seeing if home team gets 1 MVP
-  was_completed <- stats %>% filter(STAT == "mvp") %>% extract2(2) %>% magrittr::equals(1)
-  if (!was_completed) return(NULL)
+  #Check for admin results by seeing if any fans turned up
+  had_fans <- stats %>% filter(STAT == "supporters") %>% extract(,2:3) %>% sum %>% magrittr::is_greater_than(0)
+  if (!had_fans) return(NULL)
   
   #filter and convert
   stats <- stats %>% 
