@@ -111,7 +111,7 @@ get_stats <- function(uuid, hometeam, awayteam) {
   
   #Format it correctly
   abbr <- function(name) {
-    name %>% str_replace_all("[_.]"," ") %>%  str_replace_all("[!,'()]",'') %>% str_replace_all("([a-zA-z])([A-Z])", "\\1 \\2") %>%  abbreviate(1)
+    name %>% str_replace_all("[_.-]"," ") %>%  str_replace_all("[!,'()]",'') %>% str_replace_all("([a-zA-z])([A-Z])", "\\1 \\2") %>%  abbreviate(1)
   }
   
   #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
