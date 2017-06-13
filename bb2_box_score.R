@@ -163,7 +163,7 @@ post_message <- function(g) {
     )
   )
   
-  log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']], "competition:", g[['comp']]))
+  log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']], "competition:", g[['comp']], "league:",league))
   #print(embed)
   response = POST(webhook[[league]], body = list(username = bot_usernames[[league]], avatar_url = bot_avatar[[league]], embeds = embed), encode = "json")
   
