@@ -1,0 +1,34 @@
+data/<league>_parameters.Rda contains several lists that provide customisation options. Unless specified the names are the same across all (see examples)
+
+league_search_strings -> list of API search strings to find league games. Format is "[League]>[Competition]" and partial matching is allowed. Can only return 256 entries with a single search. Providing a vector of search strings will call each separately and append to the final league table to work around this.
+  Example:
+    list(
+      REL = c("REL>Season+6+Div+1", "REL>Season+6+Div+2", ...),
+      Gman = c("Gman>Season+6+Div+1", "Gman>Season+6+Div+2", ...),
+      BigO = "The+Big+O>Season+6"
+    )
+    
+webhook -> list of webhook urls for each league. Discord webhooks are channel specific, so these can point to the same place if they are to all post to the same channel.
+
+thumbnails -> list of urls for the thumbnail posted with each update. Set to an empty string to have no thumbnail
+
+colours -> list of integers for colour of embed sidebar. Decimal version of the RGB hexcode.
+  Example:
+    list(
+    REL = 0x7e0000 # RGB 126,0,0 = hexcode #7e0000 
+    Gman = 0x000e77
+    BigO = 0x917c06
+    )
+    
+bot_usernames -> list of strings determining what name the bot posts as (appears beside avatar)
+
+bot_avatar -> list of urls determining what avatar the bot posts with. Set to an empty string to use the default avatar.
+
+**Not yet implemented**
+notifications -> list of users who would like to be notified when the bot posts one of their games. Names of this list are the BB2 coach names (exact matches) and the values are a string of the discord user id ('right click user > Copy ID' with developer mode activated). Users can be mentioned by posting "<@user_id>" in the 'content' part of the POST body. They will appear above the embedded stats post
+  Example:
+    list(
+    'bb2 coach name 1' = "149222838250703944"
+    'bb2 coach name 2' = "234006145452277180"
+    )
+    

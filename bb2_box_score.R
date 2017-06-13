@@ -1,3 +1,5 @@
+#Call with name of league as argument eg. Rscript bb2_box_score.R REBBL
+
 suppressMessages(library(tidyverse))
 suppressMessages(library(purrrlyr))
 suppressMessages(library(magrittr))
@@ -5,42 +7,23 @@ suppressMessages(library(httr))
 suppressMessages(library(rvest))
 suppressMessages(library(stringr))
 
-##Setup
 log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
-#load webhook info and last processed game from file
-load("data/webhook.Rda")
-load("data/last_seen.Rda")
 
-colours <- list(
-  REL = 0x7e0000, 
-  Gman = 0x000e77, 
-  BigO = 0x917c06
-#  Spins = 0x51bf38
-)
+##Setup
+league_file <- commandArgs(trailingOnly = T)
 
-thumbnails <- list(
-#  Spins = "http://www.nufflytics.com/img/main/REBBL.png", 
-  REL = "http://www.nufflytics.com/img/main/REL_s.png", 
-  Gman = "http://www.nufflytics.com/img/main/Gman_s.png",
-  BigO = "http://www.nufflytics.com/img/main/BigO_s.png" 
-)
+#load webhook info, last processed game, and API calls from file
+load(paste0("data/",league_file,"_parameters.Rda"))
+load(paste0("data/",league_file,"_last_seen.Rda"))
+load("data/api.Rda")
 
-league_search_strings <- list(
-  #Spins = "Post_Season_Spin", 
-  REL = str_c("REL>Season+6+Div+",1:7),
-  Gman = str_c("Gman+Cup>Season+6+Div+", 1:5),
-  BigO = str_c("The+Big+O>Season+6")
-)
+#Uncomment this to send all data to test server
+webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
+last_seen <- last_seen %>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 9))
+testing = TRUE
 
-##
-#Get game data for all leagues
-##
-api_query <- function(search_strings) {
-  map(search_strings, ~POST(paste0("http://web.cyanide-studio.com/ws/bb2/?league=",.,"&platform=pc&ajax=entries")))
-}
-
+#Get data for leagues
 league_html_response <- map(league_search_strings, api_query)
-
 
 ##
 #Find out which game uuids are new
@@ -63,7 +46,7 @@ get_league_data <- function(league_response) {
     html_nodes("[data]") %>% 
     html_attr("data") %>% 
     extract(seq(1,length(.),by=10)) %>% # have the uuid listed 10 times per table row, so just take one
-    str_replace_all("^1","") # strip initial 1 from uuid so unrecorded games are 0
+    str_replace_all("^1","") # strip initial 1 from uuid so unrecorded games have ID = 0
   
   # Perform final conversions (filtering for correct leagues -- thanks REL, getting numeric uuids, etc)
   league_games %>% 
@@ -81,7 +64,7 @@ filter_league_table <- function(league_table, last_game, league) {
 }
 
 new_games <- map_df(
-  c("REL","Gman","BigO"), 
+  names(league_search_strings), 
   ~filter_league_table(league_data[[.]],last_seen[[.]], .)
 )
 
@@ -96,7 +79,7 @@ get_stats <- function(uuid, hometeam, awayteam) {
   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
   
   #Get raw stats
-  stats <- POST(paste0("http://web.cyanide-studio.com/ws/bb2/?platform=pc&ajax=entry&id=1",uuid)) %>% #replacing leading 1 in uuid for url
+  stats <- stats_api_query(uuid) %>% 
     content %>% 
     html_table %>% 
     extract2(1) 
@@ -150,10 +133,25 @@ post_message <- function(g) {
   #stats will return null if came conceeded. Don't post those.
   if (is.null(stats)) return(NULL)
   
+  #Make the winning team's name bold
+  if (g[['h_score']] > g[['a_score']]) g[['h_team']] <- paste0("**", g[['h_team']], "**")
+  if (g[['a_score']] > g[['h_score']]) g[['a_team']] <- paste0("**", g[['a_team']], "**")
+  
+  #Work out team race from image urls
+  g[['h_race']] <- g[["h_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
+  g[['a_race']] <- g[["a_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
+  
+  # Embed format is 
+  # title: 'coach v coach'
+  # description: 'team v team'
+  #              'race v race'
+  #              'comp name'
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
-      description = paste0("**",g[['h_team']], "** V **",g[['a_team']], "**\n*", g[['comp']],"*"),
+      description = paste0(g[['h_team']], " V ", g[['a_team']], "\n",
+                           g[['h_race']], " V ", g[['a_race']], "\n",
+                           "*", g[['comp']],"*"),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=", g[['uuid']]),
       thumbnail = list(url = thumbnails[[league]] ),
       color = colours[[league]],
@@ -164,9 +162,9 @@ post_message <- function(g) {
     )
   )
   
-  log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']]))
+  log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']], "competition:", g[['comp']]))
   #print(embed)
-  response = POST(webhook[[g[['league']]]], body = list(username = paste0(g[['league']]," Updates"), embeds = embed),encode = "json")
+  response = POST(webhook[[league]], body = list(username = bot_usernames[[league]], avatar_url = bot_avatar[[league]], embeds = embed), encode = "json")
   
   if (response$status_code == 429) { #rate-limited
     wait_time <- content(response)$retry_after
@@ -179,6 +177,8 @@ post_message <- function(g) {
   return(response$status_code)
 }
 
+
+#If new games, post them
 if (nrow(new_games) > 0 ) {
   posting_result <- new_games %>% 
     by_row(post_message, .to = "status_code")
@@ -187,7 +187,7 @@ if (nrow(new_games) > 0 ) {
 }
 
 ##
-#Update last seen information
+#Update last seen information if a game has been posted and we are not testing
 ##
 if (nrow(posting_result) > 0) {
   most_recent <- posting_result %>% 
@@ -198,4 +198,4 @@ if (nrow(posting_result) > 0) {
   last_seen[most_recent$league] <- most_recent$uuid
 }
 
-save(last_seen, file = "./data/last_seen.Rda")
+if (!exists("testing")) save(last_seen, file = paste0("./data/", league_file, "_last_seen.Rda"))
