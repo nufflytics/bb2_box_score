@@ -12,7 +12,7 @@ webhook -> list of webhook urls for each league. Discord webhooks are channel sp
 
 thumbnails -> list of urls for the thumbnail posted with each update. Set to an empty string to have no thumbnail
 
-colours -> list of integers for colour of embed sidebar. Decimal version of the RGB hexcode.
+colours -> list of integers for colour of embed sidebar. Decimal version of the RGB hexcode. Set to 0 for default colour. 
   Example:
     list(
     REL = 0x7e0000 # RGB 126,0,0 = hexcode #7e0000 
