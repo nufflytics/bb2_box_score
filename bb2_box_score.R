@@ -10,17 +10,18 @@ suppressMessages(library(stringr))
 log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
 
 ##Setup
-league_file <- commandArgs(trailingOnly = T)
+league_file <- commandArgs(trailingOnly = T)[1]
+testing = length(commandArgs(trailingOnly = T)) > 1
 
 #load webhook info, last processed game, and API calls from file
 load(paste0("data/",league_file,"_parameters.Rda"))
 load(paste0("data/",league_file,"_last_seen.Rda"))
 load("data/api.Rda")
 
-#Uncomment this to send all data to test server
-webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
-last_seen <- last_seen %>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 9))
-testing = TRUE
+if (testing) {
+  webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
+  last_seen <- last_seen %>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 9))  
+}
 
 #Get data for leagues
 league_html_response <- map(league_search_strings, api_query)
@@ -198,4 +199,4 @@ if (nrow(posting_result) > 0) {
   last_seen[most_recent$league] <- most_recent$uuid
 }
 
-if (!exists("testing")) save(last_seen, file = paste0("./data/", league_file, "_last_seen.Rda"))
+if (!testing) save(last_seen, file = paste0("./data/", league_file, "_last_seen.Rda"))
