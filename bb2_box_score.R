@@ -110,7 +110,7 @@ get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
   }
   
   #Format it correctly
-  abbr <- function(name) {
+  abbr <- function(name, clan) {
     if(!clan) {
       name %>% 
         str_replace_all("[_.-]([A-Z])"," \\1") %>% # if a replace [_.-] followed by a capital letter with a space  
@@ -118,8 +118,9 @@ get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
         str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%  #add a space before mid-word capitals
         abbreviate(1)
     } else {
-    name %>% 
+      name %>% 
         str_extract("\\[.*\\]")
+    }
   }
   
   #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
