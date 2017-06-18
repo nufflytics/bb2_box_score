@@ -72,7 +72,7 @@ new_games <- map_df(
 ##
 #For new games, gather competition info/game stats
 ##
-get_stats <- function(uuid, hometeam, awayteam) {
+get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
 
   keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
   stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
@@ -111,12 +111,20 @@ get_stats <- function(uuid, hometeam, awayteam) {
   
   #Format it correctly
   abbr <- function(name) {
-    name %>% str_replace_all("[_.-]"," ") %>%  str_replace_all("[!,'()]",'') %>% str_replace_all("([a-zA-z])([A-Z])", "\\1 \\2") %>%  abbreviate(1)
+    if(!clan) {
+      name %>% 
+        str_replace_all("[_.-]([A-Z])"," \\1") %>% # if a replace [_.-] followed by a capital letter with a space  
+        str_replace_all("[!,'()]",'') %>% # delete these characters
+        str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%  #add a space before mid-word capitals
+        abbreviate(1)
+    } else {
+    name %>% 
+        str_extract("\\[.*\\]")
   }
   
   #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
   stats %>% 
-    knitr::kable(row.names = F, col.names = c("", abbr(hometeam), str_c(abbr(awayteam),"    ")), format = "pandoc", align = "lrl") %>% 
+    knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"    ")), format = "pandoc", align = "lrl") %>% 
     extract(-2) %>% #remove the underlines
     paste0(collapse = "\n") %>% 
     paste0("```R\n",.,"\n```") %>% 
@@ -129,7 +137,7 @@ get_stats <- function(uuid, hometeam, awayteam) {
 post_message <- function(g) {
   league = g[['league']]
   
-  stats <- get_stats(g[['uuid']], g[['h_team']],g[['a_team']])
+  stats <- get_stats(g[['uuid']], g[['h_team']],g[['a_team']], clan = league=="Clan")
   
   #stats will return null if came conceeded. Don't post those.
   if (is.null(stats)) return(NULL)
