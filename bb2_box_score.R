@@ -1,11 +1,11 @@
 #Call with name of league as argument eg. Rscript bb2_box_score.R REBBL
 
-suppressMessages(library(tidyverse))
-suppressMessages(library(purrrlyr))
-suppressMessages(library(magrittr))
-suppressMessages(library(httr))
-suppressMessages(library(rvest))
-suppressMessages(library(stringr))
+suppressMessages(require(tidyverse))
+suppressMessages(require(purrrlyr))
+suppressMessages(require(magrittr))
+suppressMessages(require(httr))
+suppressMessages(require(rvest))
+suppressMessages(require(stringr))
 
 log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
 
@@ -73,7 +73,7 @@ new_games <- map_df(
 #For new games, gather competition info/game stats
 ##
 get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
-
+  
   keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
   stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
   
@@ -171,6 +171,20 @@ post_message <- function(g) {
       )
     )
   )
+  
+  # #Notify @here and users who have requested it
+  # mention = function(user_id) {paste0("<@",user_id,">")}
+  # 
+  # if (exists("notifications")) {
+  #   mentions = ""
+  #   #if( "at_here" %in% names(notifications) ) mentions = str_c(mentions,"@here")
+  #   #if( "at_role" %in% names(notifications) ) mentions = str_c(mentions,"<@&324372474680705034>")
+  #   #if( g[['h_coach']] %in% names(notifications) ) mentions = str_c(mentions,mention(notifications[[g[['h_coach']]]]))
+  #   if( g[['a_coach']] %in% names(notifications) ) mentions = str_c(mentions,mention(notifications[[g[['a_coach']]]]))
+  # } else {
+  #   mentions = ""
+  # }
+  
   
   log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']], "competition:", g[['comp']], "league:",league))
   #print(embed)

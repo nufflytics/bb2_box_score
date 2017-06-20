@@ -25,9 +25,10 @@ bot_usernames -> list of strings determining what name the bot posts as (appears
 bot_avatar -> list of urls determining what avatar the bot posts with. Set to an empty string to use the default avatar.
 
 **Not yet implemented**
-notifications -> list of users who would like to be notified when the bot posts one of their games. Names of this list are the BB2 coach names (exact matches) and the values are a string of the discord user id ('right click user > Copy ID' with developer mode activated). Users can be mentioned by posting "<@user_id>" in the 'content' part of the POST body. They will appear above the embedded stats post
+notifications -> list of users who would like to be notified when the bot posts one of their games. Names of this list are the BB2 coach names (exact matches) and the values are a string of the discord user id ('right click user > Copy ID' with developer mode activated). Users can be mentioned by posting "<@user_id>" in the 'content' part of the POST body. They will appear above the embedded stats post. To notify @here with all messages, include a user with name "at_here" and id = "TRUE"
   Example:
     list(
+    at_here = "TRUE"
     'bb2 coach name 1' = "149222838250703944"
     'bb2 coach name 2' = "234006145452277180"
     )
