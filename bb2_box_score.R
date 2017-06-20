@@ -6,6 +6,8 @@ suppressMessages(require(magrittr))
 suppressMessages(require(httr))
 suppressMessages(require(rvest))
 suppressMessages(require(stringr))
+suppressMessages(require(nufflytics))
+
 
 log_message = function(message) { write_lines(paste(Sys.time(),message, sep = "\t"), "data/log.txt", append = TRUE)}
 
@@ -72,65 +74,97 @@ new_games <- map_df(
 ##
 #For new games, gather competition info/game stats
 ##
-get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
+get_stats <- function(uuid) {
+  full_match_stats <- nufflytics::get_game_stats(uuid)
   
-  keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
-  stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
+  #Main stats table
+  stats_to_collect <- c("inflictedTackles", "inflictedInjuries", "inflictedKO", "inflictedCasualties", "inflictedDead", "inflictedPushOuts", "inflictedInterceptions", "inflictedPasses", "inflictedCatches")
   
-  conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
+  scores <- data_frame(stat="TD", home = score(full_match_stats, "home"), away = score(full_match_stats, "away"))
   
-  #Get raw stats
-  stats <- stats_api_query(uuid) %>% 
-    content %>% 
-    html_table %>% 
-    extract2(1) 
+  stats <- data_frame(
+    stat = c("BLK", "AVBr", "KO", "CAS", "KILL", "SURF", "INT", "PASS", "CATCH"),
+    home = pmap_dbl(list(list(full_match_stats), stats_to_collect , "home"), stat_total),
+    away = pmap_dbl(list(list(full_match_stats), stats_to_collect , "away"), stat_total)
+    )
   
-  #Check for admin results by seeing if any fans turned up
-  had_fans <- stats %>% filter(STAT == "supporters") %>% extract(,2:3) %>% sum %>% magrittr::is_greater_than(0)
-  if (!had_fans) return(NULL)
+  stats <- bind_rows(scores, stats)
   
-  #filter and convert
-  stats <- stats %>% 
-    filter(STAT %in% keep_stats) %>% 
-    mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
-    arrange(STAT) %>% 
-    set_colnames(c("STAT","home","away"))
+  #Work out injuries / level ups
+  players <- map(c("home","away"), ~player_data(full_match_stats, .)) %>% set_names(c("home","away"))
   
-  #Combine pass/catch stats for if they are needed
-  pass_catch = data_frame(STAT = "P/C", home = paste0(stats[8,2],"/",stats[9,2]), away = paste0(stats[8,3],"/",stats[9,3]))
+  injuries <- players %>% map(~filter(., !injuries %in% c(NA, "BH")))
   
-  #Filter out stats with no entries (keeping TDs always)
-  filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
-  stats = stats[filter,]
+  level_ups <- players %>% map(filter, lvlup)
   
-  if (any(c("PASS","CATCH") %in% stats$STAT)) {
-    stats %<>% mutate_all(as.character) %>% 
-      filter(!STAT %in% c("PASS","CATCH")) %>% 
-      bind_rows(pass_catch)
-  }
-  
-  #Format it correctly
-  abbr <- function(name, clan) {
-    if(!clan) {
-      name %>% 
-        str_replace_all("[_.-]([A-Z])"," \\1") %>% # if a replace [_.-] followed by a capital letter with a space  
-        str_replace_all("[!,'()]",'') %>% # delete these characters
-        str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%  #add a space before mid-word capitals
-        abbreviate(1)
-    } else {
-      name %>% 
-        str_extract("\\[.*\\]")
-    }
-  }
-  
-  #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
-  stats %>% 
-    knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"    ")), format = "pandoc", align = "lrl") %>% 
-    extract(-2) %>% #remove the underlines
-    paste0(collapse = "\n") %>% 
-    paste0("```R\n",.,"\n```") %>% 
-    as.character()
+  list(stats = stats, injuries=injuries, level_ups=level_ups)
 }
+
+
+###
+#Old get_stats function
+###
+
+# get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
+#   
+#   keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
+#   stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
+#   
+#   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
+#   
+#   #Get raw stats
+#   stats <- stats_api_query(uuid) %>% 
+#     content %>% 
+#     html_table %>% 
+#     extract2(1) 
+#   
+#   #Check for admin results by seeing if any fans turned up
+#   had_fans <- stats %>% filter(STAT == "supporters") %>% extract(,2:3) %>% sum %>% magrittr::is_greater_than(0)
+#   if (!had_fans) return(NULL)
+#   
+#   #filter and convert
+#   stats <- stats %>% 
+#     filter(STAT %in% keep_stats) %>% 
+#     mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
+#     arrange(STAT) %>% 
+#     set_colnames(c("STAT","home","away"))
+#   
+#   #Combine pass/catch stats for if they are needed
+#   pass_catch = data_frame(STAT = "P/C", home = paste0(stats[8,2],"/",stats[9,2]), away = paste0(stats[8,3],"/",stats[9,3]))
+#   
+#   #Filter out stats with no entries (keeping TDs always)
+#   filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
+#   stats = stats[filter,]
+#   
+#   if (any(c("PASS","CATCH") %in% stats$STAT)) {
+#     stats %<>% mutate_all(as.character) %>% 
+#       filter(!STAT %in% c("PASS","CATCH")) %>% 
+#       bind_rows(pass_catch)
+#   }
+#   
+#   #Format it correctly
+#   abbr <- function(name, clan) {
+#     if(!clan) {
+#       name %>% 
+#         str_replace_all("[_.-]([A-Z])"," \\1") %>% # if a replace [_.-] followed by a capital letter with a space  
+#         str_replace_all("[!,'()]",'') %>% # delete these characters
+#         str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%  #add a space before mid-word capitals
+#         abbreviate(1)
+#     } else {
+#       name %>% 
+#         str_extract("\\[.*\\]")
+#     }
+#   }
+#   
+#   #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
+#   stats %>% 
+#     knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"    ")), format = "pandoc", align = "lrl") %>% 
+#     extract(-2) %>% #remove the underlines
+#     paste0(collapse = "\n") %>% 
+#     paste0("```R\n",.,"\n```") %>% 
+#     as.character()
+# }
+
 
 ##
 #Post messages to channel
