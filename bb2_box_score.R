@@ -161,7 +161,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   
   #Construct injuries embed summary
   summarise_injury <- function(player) {
-    sprintf("__%s__ *(%s)* : **%s**\n%s", player$name, player$type, player$injuries, player$skills) %>% 
+    sprintf("__%s__ *(%s)* : **%s**\n%s - %s SPP", player$name, player$type, player$injuries, player$skills, player$SPP+player$SPP_gain) %>% 
       paste0(collapse="\n\n")
   }
   
