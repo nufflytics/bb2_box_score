@@ -74,97 +74,135 @@ new_games <- map_df(
 ##
 #For new games, gather competition info/game stats
 ##
-get_stats <- function(uuid) {
+#Abbreviate team names
+abbr <- function(name, clan = FALSE) {
+  if(!clan) {
+    name %>%
+      str_replace_all("([a-z_.-])([A-Z])", "\\1 \\2") %>%  # add a space before mid-word capitals and 'word separator' punctuation (_.-) followed by a capital
+      str_replace_all("[!,'()]",'') %>% # delete these characters
+      abbreviate(1)
+  } else {
+    name %>%
+      str_extract("\\[.*\\]")
+  }
+}
+
+get_match_summary <- function(uuid) {
   full_match_stats <- nufflytics::get_game_stats(uuid)
   
+  #spectators == 0 is an admin concede. idMatchCompletionStatus != 0 is a regular concede
+  if (full_match_stats$RowMatch$spectators == 0 | full_match_stats$RowMatch$idMatchCompletionStatus != 0) return(NULL) 
+  
   #Main stats table
-  stats_to_collect <- c("inflictedTackles", "inflictedInjuries", "inflictedKO", "inflictedCasualties", "inflictedDead", "inflictedPushOuts", "inflictedInterceptions", "inflictedPasses", "inflictedCatches")
+  stats_to_collect <- c(
+    BLK = "inflictedTackles", 
+    AVBr = "inflictedInjuries", 
+    KO = "inflictedKO",
+    CAS = "inflictedCasualties", 
+    KILL = "inflictedDead", 
+    SURF = "inflictedPushOuts", 
+    INT = "inflictedInterceptions", 
+    PASS = "inflictedPasses", 
+    CATCH = "inflictedCatches"
+  )
   
   scores <- data_frame(stat="TD", home = score(full_match_stats, "home"), away = score(full_match_stats, "away"))
   
   stats <- data_frame(
-    stat = c("BLK", "AVBr", "KO", "CAS", "KILL", "SURF", "INT", "PASS", "CATCH"),
+    stat = names(stats_to_collect),
     home = pmap_dbl(list(list(full_match_stats), stats_to_collect , "home"), stat_total),
     away = pmap_dbl(list(list(full_match_stats), stats_to_collect , "away"), stat_total)
-    )
+  )
   
   stats <- bind_rows(scores, stats)
   
   #Work out injuries / level ups
   players <- map(c("home","away"), ~player_data(full_match_stats, .)) %>% set_names(c("home","away"))
   
-  injuries <- players %>% map(~filter(., !injuries %in% c(NA, "BH")))
+  injuries <- players %>% map(~filter(., ! injuries %in% c(NA, "BH")))
   
-  level_ups <- players %>% map(filter, lvlup)
+  level_ups <- players %>% map(~filter(., lvlup))
   
   list(stats = stats, injuries=injuries, level_ups=level_ups)
 }
 
+format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
+  #extract specific stat from stats table
+  get_stat <- function(data, s, t) {
+    data %>% filter(stat == s) %>% extract2(t)
+  }
+  
+  #Combine pass/catch stats for if they are needed
+  pass_catch = data_frame(stat = "P/C", 
+                          home = paste0(get_stat(match_summary$stats, "PASS", "home"),"/",get_stat(match_summary$stats, "CATCH", "home")), 
+                          away = paste0(get_stat(match_summary$stats, "PASS", "away"),"/",get_stat(match_summary$stats, "CATCH", "away")))
+  
+  #Filter out stats with no entries (keeping TDs always)
+  filter = c(TRUE, rowSums(match_summary$stats[-1, 2:3]) > 0)
+  match_summary$stats = match_summary$stats[filter,]
+  
+  #Replace the PASS & CATCH stats with P/C if present
+  if (any(c("PASS","CATCH") %in% match_summary$stats$stat)) {
+    match_summary$stats %<>% mutate_all(as.character) %>%
+      filter(!stat %in% c("PASS","CATCH")) %>%
+      bind_rows(pass_catch)
+  }
+  
+  #Construct stats embed table 
+  stat_block <- match_summary$stats %>%
+    knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"    ")), format = "pandoc", align = "lrl") %>%
+    extract(-2) %>% #remove the underlines
+    paste0(collapse = "\n") %>%
+    paste0("```R\n",.,"\n```") %>%
+    as.character()
+  
+  #Construct injuries embed summary
+  summarise_injury <- function(player) {
+    sprintf("__%s__ *(%s)* : **%s**\n%s", player$name, player$type, player$injuries, player$skills) %>% 
+      paste0(collapse="\n")
+  }
+  
+  injury_block = ""
+  if (match_summary$injuries %>% map_int(nrow) %>% sum %>% is_greater_than(0)) {
+    inj_summary <- match_summary$injuries %>% map(summarise_injury)
+    if(nchar(inj_summary$home)>0) {
+      home_text <- sprintf("**%s**\n%s", hometeam, inj_summary$home)
+      injury_block <- str_c(injury_block, home_text)
+    }
+    if(nchar(inj_summary$away)>0) {
+      away_text <- sprintf("**%s**\n%s", awayteam, inj_summary$away)
+      if(nchar(injury_block)>0) away_text <- str_c("\n\n",away_text)
+      injury_block <- str_c(injury_block, away_text)
+    }
+  }
+  if(league_file == "REBBL" & !testing) injury_block %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
+  
+  #Construct level ups embed summary
+  summarise_lvlups <- function(player) {
+    sprintf("__%s__ *(%s)* : **%i :arrow_right: %i SPP**\n%s", player$name, player$type, player$SPP, player$SPP+player$SPP_gain, player$skills) %>% 
+      paste0(collapse="\n")
+  }
 
-###
-#Old get_stats function
-###
-
-# get_stats <- function(uuid, hometeam, awayteam, clan = FALSE) {
-#   
-#   keep_stats <- c(TD = "touchdowns",BLK = "tackles", AVBr = "injuries", CAS = "casualties", KO = "ko", RIP = "dead", PASS = "passes", CATCH = "catches", INT = "interceptions")
-#   stat_order <- c("TD", "BLK", "AVBr","KO","CAS","RIP","INT","PASS","CATCH")
-#   
-#   conv_name <- function(n) {keep_stats %>% extract(.==n) %>% names}
-#   
-#   #Get raw stats
-#   stats <- stats_api_query(uuid) %>% 
-#     content %>% 
-#     html_table %>% 
-#     extract2(1) 
-#   
-#   #Check for admin results by seeing if any fans turned up
-#   had_fans <- stats %>% filter(STAT == "supporters") %>% extract(,2:3) %>% sum %>% magrittr::is_greater_than(0)
-#   if (!had_fans) return(NULL)
-#   
-#   #filter and convert
-#   stats <- stats %>% 
-#     filter(STAT %in% keep_stats) %>% 
-#     mutate(STAT = map_chr(STAT, conv_name) %>% factor(levels = stat_order)) %>% 
-#     arrange(STAT) %>% 
-#     set_colnames(c("STAT","home","away"))
-#   
-#   #Combine pass/catch stats for if they are needed
-#   pass_catch = data_frame(STAT = "P/C", home = paste0(stats[8,2],"/",stats[9,2]), away = paste0(stats[8,3],"/",stats[9,3]))
-#   
-#   #Filter out stats with no entries (keeping TDs always)
-#   filter = c(TRUE, rowSums(stats[-1, 2:3]) > 0)
-#   stats = stats[filter,]
-#   
-#   if (any(c("PASS","CATCH") %in% stats$STAT)) {
-#     stats %<>% mutate_all(as.character) %>% 
-#       filter(!STAT %in% c("PASS","CATCH")) %>% 
-#       bind_rows(pass_catch)
-#   }
-#   
-#   #Format it correctly
-#   abbr <- function(name, clan) {
-#     if(!clan) {
-#       name %>% 
-#         str_replace_all("[_.-]([A-Z])"," \\1") %>% # if a replace [_.-] followed by a capital letter with a space  
-#         str_replace_all("[!,'()]",'') %>% # delete these characters
-#         str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%  #add a space before mid-word capitals
-#         abbreviate(1)
-#     } else {
-#       name %>% 
-#         str_extract("\\[.*\\]")
-#     }
-#   }
-#   
-#   #Have to pad away team name to prevent ugly linebreaks on some devices (and introduce some ugly scroll bars on others, but oh well)
-#   stats %>% 
-#     knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"    ")), format = "pandoc", align = "lrl") %>% 
-#     extract(-2) %>% #remove the underlines
-#     paste0(collapse = "\n") %>% 
-#     paste0("```R\n",.,"\n```") %>% 
-#     as.character()
-# }
-
+  lvlup_block = ""
+  if (match_summary$level_ups %>% map_int(nrow) %>% sum %>% is_greater_than(0)) {
+    lvl_summary <- match_summary$level_ups %>% map(summarise_lvlups)
+    if(nchar(lvl_summary$home)>0) {
+      home_text <- sprintf("**%s**\n%s", hometeam, lvl_summary$home)
+      lvlup_block <- str_c(lvlup_block, home_text)
+    }
+    if(nchar(lvl_summary$away)>0) {
+      away_text <- sprintf("**%s**\n%s", awayteam, lvl_summary$away)
+      if(nchar(lvlup_block)>0) away_text <- str_c("\n\n",away_text)
+      lvlup_block <- str_c(lvlup_block, away_text)
+    }
+  }
+  
+  fields <- list(list(name = "Game Stats", value = stat_block, inline = T))
+  if(nchar(injury_block)>0) fields %<>% append(list(list(name = "Injury Report", value = injury_block, inline = T)))
+  if(nchar(lvlup_block)>0) fields %<>% append(list(list(name = "Player Development", value = lvlup_block, inline = T)))
+  
+  fields
+}
 
 ##
 #Post messages to channel
