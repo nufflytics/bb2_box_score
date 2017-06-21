@@ -161,7 +161,8 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   
   #Construct injuries embed summary
   summarise_injury <- function(player) {
-    sprintf("__%s__ *(%s)* : **%s**\n%s - %s SPP", player$name, player$type, player$injuries, player$skills, player$SPP+player$SPP_gain) %>% 
+    sprintf("__%s__ *(%s)* : **%s**\n%s - %s SPP", player$name, player$type, player$injuries, player$skills, player$SPP+player$SPP_gain) %>%
+      str_replace_all("\\*\\(Star Player\\)\\*", ":star:") %>% 
       paste0(collapse="\n\n")
   }
   
@@ -183,7 +184,8 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   #Construct level ups embed summary
   summarise_lvlups <- function(player) {
     sprintf("__%s__ *(%s)* : **%i :arrow_right: %i SPP**\n%s", player$name, player$type, player$SPP, player$SPP+player$SPP_gain, player$skills) %>% 
-      paste0(collapse="\n\n")
+      str_replace_all("\\*\\(Star Player\\)\\*", ":star:") %>% 
+      paste0(collapse="\n\n") 
   }
 
   lvlup_block = ""
