@@ -21,6 +21,9 @@ load(paste0("data/",league_file,"_last_seen.Rda"))
 load("data/api.Rda")
 
 if (testing) {
+  #Private testing
+  #webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/326519810739666945/LVgkxHSSd_vs3d4To9chThqPyl-TLyN_smaKuc2WyBvwJtZ29AYXI9UbrW1hFGnh-ttk"))
+  #Public testing
   webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
   last_seen <- last_seen %>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 9))  
 }
@@ -79,7 +82,7 @@ abbr <- function(name, clan = FALSE) {
   if(!clan) {
     name %>%
       str_replace_all("([a-z_.-])([A-Z])", "\\1 \\2") %>%  # add a space before mid-word capitals and 'word separator' punctuation (_.-) followed by a capital
-      str_replace_all("[!,'()]",'') %>% # delete these characters
+      str_replace_all("[!,'()*]",'') %>% # delete these characters
       abbreviate(1)
   } else {
     name %>%
@@ -90,8 +93,8 @@ abbr <- function(name, clan = FALSE) {
 get_match_summary <- function(uuid) {
   full_match_stats <- nufflytics::get_game_stats(uuid)
   
-  #spectators == 0 is an admin concede. idMatchCompletionStatus != 0 is a regular concede
-  if (full_match_stats$RowMatch$spectators == 0 | full_match_stats$RowMatch$idMatchCompletionStatus != 0) return(NULL) 
+  #homeNbSupporters == 0 is an admin concede. idMatchCompletionStatus != 0 is a regular concede
+  if (full_match_stats$RowMatch$homeNbSupporters == 0 | full_match_stats$RowMatch$idMatchCompletionStatus != 0) return(NULL) 
   
   #Main stats table
   stats_to_collect <- c(
@@ -159,7 +162,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   #Construct injuries embed summary
   summarise_injury <- function(player) {
     sprintf("__%s__ *(%s)* : **%s**\n%s", player$name, player$type, player$injuries, player$skills) %>% 
-      paste0(collapse="\n")
+      paste0(collapse="\n\n")
   }
   
   injury_block = ""
@@ -180,7 +183,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   #Construct level ups embed summary
   summarise_lvlups <- function(player) {
     sprintf("__%s__ *(%s)* : **%i :arrow_right: %i SPP**\n%s", player$name, player$type, player$SPP, player$SPP+player$SPP_gain, player$skills) %>% 
-      paste0(collapse="\n")
+      paste0(collapse="\n\n")
   }
 
   lvlup_block = ""
@@ -197,25 +200,15 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
     }
   }
   
-  fields <- list(list(name = "Game Stats", value = stat_block, inline = T))
-  if(nchar(injury_block)>0) fields %<>% append(list(list(name = "Injury Report", value = injury_block, inline = T)))
-  if(nchar(lvlup_block)>0) fields %<>% append(list(list(name = "Player Development", value = lvlup_block, inline = T)))
+  fields <- list(list(name = "__**Game Stats**__", value = stat_block, inline = T))
+  if(nchar(injury_block)>0) fields %<>% append(list(list(name = "__**Injury Report**__", value = injury_block, inline = T)))
+  if(nchar(lvlup_block)>0) fields %<>% append(list(list(name = "__**Player Development**__", value = lvlup_block, inline = T)))
   
   fields
 }
 
-##
-#Post messages to channel
-##
-post_message <- function(g) {
-  league = g[['league']]
-  
-  stats <- get_stats(g[['uuid']], g[['h_team']],g[['a_team']], clan = league=="Clan")
-  
-  #stats will return null if came conceeded. Don't post those.
-  if (is.null(stats)) return(NULL)
-  
-  #Make the winning team's name bold
+format_embed <- function(g, stats_summary, clan = F) {
+
   if (g[['h_score']] > g[['a_score']]) g[['h_team']] <- paste0("**", g[['h_team']], "**")
   if (g[['a_score']] > g[['h_score']]) g[['a_team']] <- paste0("**", g[['a_team']], "**")
   
@@ -223,11 +216,6 @@ post_message <- function(g) {
   g[['h_race']] <- g[["h_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   g[['a_race']] <- g[["a_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   
-  # Embed format is 
-  # title: 'coach v coach'
-  # description: 'team v team'
-  #              'race v race'
-  #              'comp name'
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
@@ -235,14 +223,29 @@ post_message <- function(g) {
                            g[['h_race']], " V ", g[['a_race']], "\n",
                            "*", g[['comp']],"*"),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=", g[['uuid']]),
-      thumbnail = list(url = thumbnails[[league]] ),
-      color = colours[[league]],
+      #thumbnail = list(url = thumbnails[[g[['league']]]] ),
+      #footer = list(icon_url= thumbnails[[g[['league']]]], text = "ico"),
+      #image = list(url = thumbnails[[g[['league']]]], height = 50, width = 50),
+      color = colours[[g[['league']]]],
       #timestamp = Sys.time() %>% lubridate::ymd_hms(tz = "Australia/Sydney"),
-      fields = list(
-        list(name = "Game Stats", value = stats, inline = F)
-      )
+      fields = format_embed_fields(stats_summary, str_replace_all(g[['h_team']], "[*]",""), str_replace_all(g[['a_team']], "[*]",""), clan)
     )
   )
+  
+  embed
+}
+##
+#Post messages to channel
+##
+post_message <- function(g) {
+  league = g[['league']]
+  is_clan <- league == "Clan"
+  match_summary <- get_match_summary(g[['uuid']])
+  
+  #summary will return null if game decided by admin result or concede. Don't post those.
+  if (is.null(match_summary)) return(NULL)
+  
+  embed <- format_embed(g, match_summary, is_clan)
   
   # #Notify @here and users who have requested it
   # mention = function(user_id) {paste0("<@",user_id,">")}
@@ -256,7 +259,6 @@ post_message <- function(g) {
   # } else {
   #   mentions = ""
   # }
-  
   
   log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']], "competition:", g[['comp']], "league:",league))
   #print(embed)
