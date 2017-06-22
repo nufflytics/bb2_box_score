@@ -21,10 +21,13 @@ load(paste0("data/",league_file,"_last_seen.Rda"))
 load("data/api.Rda")
 
 if (testing) {
-  #Private testing
-  #webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/326519810739666945/LVgkxHSSd_vs3d4To9chThqPyl-TLyN_smaKuc2WyBvwJtZ29AYXI9UbrW1hFGnh-ttk"))
-  #Public testing
-  webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
+  type <- commandArgs(trailingOnly = T)[2]
+  
+  if( type=="public")  { #test on my server where people can see it
+    webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
+  } else { # default assumption is that this is private testing
+    webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/326519810739666945/LVgkxHSSd_vs3d4To9chThqPyl-TLyN_smaKuc2WyBvwJtZ29AYXI9UbrW1hFGnh-ttk"))
+  }
   last_seen <- last_seen %>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 9))  
 }
 
