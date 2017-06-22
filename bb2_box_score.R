@@ -182,7 +182,11 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
       injury_block <- str_c(injury_block, away_text)
     }
   }
-  if(league_file == "REBBL" & !testing) injury_block %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
+  if(league_file == "REBBL" & !testing) {
+    injury_block %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
+  } else {
+    injury_block %<>% str_replace_all("Dead",":skull:")
+    }
   
   #Construct level ups embed summary
   summarise_lvlups <- function(player) {
