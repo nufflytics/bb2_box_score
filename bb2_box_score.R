@@ -159,7 +159,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   #Construct stats embed table
   #Have to pad away team abbreviation to avoid lines wrapping
   stat_block <- match_summary$stats %>%
-    knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"  ")), format = "pandoc", align = "lrl") %>%
+    knitr::kable(row.names = F, col.names = c("", abbr(hometeam, clan), str_c(abbr(awayteam, clan),"   ")), format = "pandoc", align = "lrl") %>%
     extract(-2) %>% #remove the underlines
     paste0(collapse = "\n") %>%
     paste0("```R\n",.,"\n```") %>%
