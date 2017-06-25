@@ -48,7 +48,7 @@ get_league_data <- function(league_response) {
     extract2(1) %>% # Get first html table in response
     set_colnames(c("comp","round","h_coach","h_team","h_img","score","a_img","a_team","a_coach")) %>% 
     separate(score,c("h_score","a_score")) %>% 
-    filter(!is.na(round)) # remove competition headers
+    filter(!is.na(a_score)) # remove competition headers
   
   #Add uuids from the [data] attribute of html nodes
   league_games$uuid <- response_content %>% 
