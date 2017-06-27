@@ -20,6 +20,14 @@ load(paste0("data/",league_file,"_parameters.Rda"))
 load(paste0("data/",league_file,"_last_seen.Rda"))
 load("data/api.Rda")
 
+#if parameters file doesn't have a platform, assume it's PC
+#temporary fix until I go back and add parameters for leagues added early on
+
+if (!exists("platform")) {
+  platform = list()
+  platform[names(webhook)] <- "pc"
+}
+
 if (testing) {
   type <- commandArgs(trailingOnly = T)[2]
   
@@ -32,7 +40,7 @@ if (testing) {
 }
 
 #Get data for leagues
-league_html_response <- map(league_search_strings, api_query)
+league_html_response <- map2(league_search_strings, platform, api_query)
 
 ##
 #Find out which game uuids are new
@@ -55,9 +63,9 @@ get_league_data <- function(league_response) {
     html_nodes("[data]") %>% 
     html_attr("data") %>% 
     extract(seq(1,length(.),by=10)) %>% # have the uuid listed 10 times per table row, so just take one
-    str_replace_all("^1","") # strip initial 1 from uuid so unrecorded games have ID = 0
+    str_replace_all("^1[012]","") # strip initial 1<platform_code> from uuid so unrecorded games have ID = 0
   
-  # Perform final conversions (filtering for correct leagues -- thanks REL, getting numeric uuids, etc)
+  # add numeric ID for easy comparison
   league_games %>% 
     mutate(ID = strtoi(uuid, base = 16)) 
 }
@@ -95,8 +103,8 @@ abbr <- function(name, clan = FALSE) {
   }
 }
 
-get_match_summary <- function(uuid) {
-  full_match_stats <- nufflytics::get_game_stats(uuid)
+get_match_summary <- function(uuid, platform) {
+  full_match_stats <- nufflytics::get_game_stats(uuid, platform)
   
   #homeNbSupporters == 0 is an admin concede. idMatchCompletionStatus != 0 is a regular concede
   if (full_match_stats$RowMatch$homeNbSupporters == 0 | full_match_stats$RowMatch$idMatchCompletionStatus != 0) return(NULL) 
@@ -257,7 +265,7 @@ format_embed <- function(g, stats_summary, clan = F) {
 post_message <- function(g) {
   league = g[['league']]
   is_clan <- league == "Clan"
-  match_summary <- get_match_summary(g[['uuid']])
+  match_summary <- get_match_summary(g[['uuid']], platform[[league]])
   
   #summary will return null if game decided by admin result or concede. Don't post those.
   if (is.null(match_summary)) return(NULL)
