@@ -167,14 +167,23 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   
   #Construct injuries embed summary
   summarise_injury <- function(player) {
-    sprintf("__%s__ *(%s)* : **%s**\n%s - %s SPP", player$name, player$type, player$injuries, player$skills, player$SPP+player$SPP_gain) %>%
+    inj_sum <- sprintf("__%s__ *(%s)* : **%s**\n%s - %s SPP", player$name, player$type, player$injuries, player$skills, player$SPP+player$SPP_gain) %>%
       str_replace_all("\\*\\(Star Player\\)\\*", ":star:") %>% 
       paste0(collapse="\n\n")
+    
+    if(league_file == "REBBL" & !testing) {
+      inj_sum %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
+    } else {
+      inj_sum %<>% str_replace_all("Dead",":skull:")
+    }
+    
+    inj_sum
   }
   
   injury_block = ""
   if (match_summary$injuries %>% map_int(nrow) %>% sum %>% is_greater_than(0)) {
     inj_summary <- match_summary$injuries %>% map(summarise_injury)
+    
     if(nchar(inj_summary$home)>0) {
       home_text <- sprintf("**%s**\n%s", hometeam, inj_summary$home)
       injury_block <- str_c(injury_block, home_text)
@@ -185,11 +194,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
       injury_block <- str_c(injury_block, away_text)
     }
   }
-  if(league_file == "REBBL" & !testing) {
-    injury_block %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
-  } else {
-    injury_block %<>% str_replace_all("Dead",":skull:")
-    }
+
   
   #Construct level ups embed summary
   summarise_lvlups <- function(player) {
