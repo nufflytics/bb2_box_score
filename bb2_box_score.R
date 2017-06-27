@@ -247,7 +247,7 @@ format_embed <- function(g, stats_summary, clan = F) {
       description = paste0(g[['h_team']], " V ", g[['a_team']], "\n",
                            g[['h_race']], " V ", g[['a_race']], "\n",
                            "*", g[['comp']],"*"),
-      url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=", g[['uuid']]),
+      url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=1",platform[[g[['league']]]], g[['uuid']]),
       #thumbnail = list(url = thumbnails[[g[['league']]]] ),
       #footer = list(icon_url= thumbnails[[g[['league']]]], text = "ico"),
       #image = list(url = thumbnails[[g[['league']]]], height = 50, width = 50),
