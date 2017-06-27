@@ -85,9 +85,9 @@ abbr <- function(name, clan = FALSE) {
   if(!clan) {
     name %>%
       str_replace_all("\\[(.*)\\]","") %>% # strip out 'clan' tags if not clan league
-      str_replace_all("\\((.*)\\)", "( \\1 )") %>% # Put spaces around brackets, so eg. USS Sulaco (REL Chapter) is abbreviated to US(RC)
+      str_replace_all("\\((.*)\\)", " ( \\1 )") %>% # Put spaces around brackets, so eg. USS Sulaco (REL Chapter) is abbreviated to US(RC)
       str_replace_all("([a-z_.-])([A-Z])", "\\1 \\2") %>%  # add a space before mid-word capitals and 'word separator' punctuation (_.-) followed by a capital
-      str_replace_all("[!,'*]",'') %>% # delete these characters
+      str_replace_all("[&!,'\"*]",'') %>% # delete these characters
       abbreviate(1)
   } else {
     name %>%
