@@ -25,7 +25,7 @@ load("data/api.Rda")
 
 if (!exists("platform")) {
   platform = list()
-  platform[names(webhook)] <- "pc"
+  platform[names(league_search_strings)] <- "pc"
 }
 
 if (testing) {
@@ -40,7 +40,7 @@ if (testing) {
 }
 
 #Get data for leagues
-league_html_response <- map2(league_search_strings, platform, api_query)
+league_html_response <- map2(league_search_strings, platform[names(league_search_strings)], api_query)
 
 ##
 #Find out which game uuids are new
