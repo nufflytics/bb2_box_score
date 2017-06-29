@@ -88,6 +88,14 @@ new_games <- map_df(
   ~filter_league_table(league_data[[.]],last_seen[[.]], .)
 )
 
+if(testing) {
+  type = commandArgs(trailingOnly = T)[2]
+  
+  if (type == "update") {
+    new_games %<>% group_by(league) %>% filter(ID == max(ID))
+  }
+}
+
 ##
 #For new games, gather competition info/game stats
 ##
@@ -361,4 +369,4 @@ if (nrow(posting_result) > 0) {
   last_seen[most_recent$league] <- most_recent$uuid
 }
 
-if (!testing) save(last_seen, file = paste0("./data/", league_file, "_last_seen.Rda"))
+if (!testing | commandArgs(trailingOnly = T)[2] == "update" ) save(last_seen, file = paste0("./data/", league_file, "_last_seen.Rda"))
