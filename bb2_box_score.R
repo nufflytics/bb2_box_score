@@ -272,6 +272,14 @@ format_embed <- function(g, stats_summary, clan = F) {
   g[['h_race']] <- g[["h_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   g[['a_race']] <- g[["a_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   
+  author = ""
+  if (exists("BB2LM")) {
+    if(BB2LM[[g[['league']]]]) {
+      author = list(name  ="More details at BB2LM", url = paste0("http://www.bb2leaguemanager.com/Leaderboard/match_detail.php?match_uuid=1",platform_code[platform[[g[['league']]]]], g[['uuid']]))
+    }
+  }
+    
+  
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
@@ -280,6 +288,7 @@ format_embed <- function(g, stats_summary, clan = F) {
                            "*", g[['comp']],"*"),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=1",platform_code[platform[[g[['league']]]]], g[['uuid']]),
       #thumbnail = list(url = thumbnails[[g[['league']]]] ),
+      author = author,
       #footer = list(icon_url= thumbnails[[g[['league']]]], text = "ico"),
       #image = list(url = thumbnails[[g[['league']]]], height = 50, width = 50),
       color = colours[[g[['league']]]],
