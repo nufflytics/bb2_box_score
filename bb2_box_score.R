@@ -57,7 +57,8 @@ get_league_data <- function(league_response) {
     html_table %>% 
     extract2(1) %>% # Get first html table in response
     set_colnames(c("comp","round","h_coach","h_team","h_img","score","a_img","a_team","a_coach")) %>% 
-    separate(score,c("h_score","a_score")) 
+    separate(score,c("h_score","a_score")) %>% 
+    filter(a_coach != "Coach 2")
 
   #Add uuids from the [data] attribute of html nodes
   league_games$uuid <- response_content %>% 
@@ -105,7 +106,35 @@ abbr <- function(name, clan = FALSE) {
   }
 }
 
+
 get_match_summary <- function(uuid, platform) {
+  if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
+  
+  full_match_stats <- POST(modify_url("http://bb2leaguemanager.com/Leaderboard/get_matchdata.php", query = list("match_uuid" = str_c("1", platform_code[platform], uuid), "platform" = platform))) %>% content(as="parsed",type="application/json")
+  
+  stats_to_collect <- c(
+    TD = "inflictedtouchdowns",
+    BLK = "inflictedtackles", 
+    AVBr = "inflictedinjuries", 
+    KO = "inflictedko",
+    CAS = "inflictedcasualties", 
+    KILL = "inflicteddead", 
+    SURF = "inflictedpushouts", 
+    INT = "inflictedinterceptions", 
+    PASS = "inflictedpasses", 
+    CATCH = "inflictedcatches"
+  )
+  
+  stats <- data_frame(
+    stat = names(stats_to_collect),
+    home = extract(full_match_stats$match$teams[[1]],stats_to_collect) %>% as.integer(),
+    away = extract(full_match_stats$match$teams[[2]],stats_to_collect) %>% as.integer()
+  )
+  
+  list(stats=stats,injuries=data_frame(), level_ups = data_frame())
+}
+
+get_match_summary_pc <- function(uuid, platform) {
   full_match_stats <- nufflytics::get_game_stats(uuid, platform)
   
   #homeNbSupporters == 0 is an admin concede. idMatchCompletionStatus != 0 is a regular concede
