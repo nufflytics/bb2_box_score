@@ -329,14 +329,14 @@ post_message <- function(g) {
     
     clan_summary <- league_data$Clan %>% 
       filter(ID > 0, round == g[['round']]) %>% 
-      mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = ifelse(h_score > a_score, h_clan, a_clan)) %>% 
+      mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = ifelse(h_score > a_score, toupper(h_clan), toupper(a_clan))) %>% 
       group_by(winner) %>% 
       summarise(n = n())
     
-    clan_1_wins <- filter(clan_summary, winner == clan_1) %>% extract2("n")
+    clan_1_wins <- filter(clan_summary, winner == toupper(clan_1)) %>% extract2("n")
     if(length(clan_1_wins) == 0) clan_1_wins = 0
     
-    clan_2_wins <- filter(clan_summary, winner == clan_2) %>% extract2("n")
+    clan_2_wins <- filter(clan_summary, winner == toupper(clan_2)) %>% extract2("n")
     if(length(clan_2_wins) == 0) clan_2_wins = 0
     
     clan_1_msg <- paste(clan_1,clan_1_wins)
@@ -345,7 +345,7 @@ post_message <- function(g) {
     clan_2_msg <- paste(clan_2_wins,clan_2)
     if (length(clan_2_wins)>0 & clan_2_wins >= 3) clan_2_msg <- paste0("**",clan_2_msg,"**")
     
-    message = paste0("Clan Results: ",clan_1_msg," V ",clan_2_msg)
+    message = paste0("__Clan Results__: ",clan_1_msg," V ",clan_2_msg)
   }
   
   # #Notify @here and users who have requested it
