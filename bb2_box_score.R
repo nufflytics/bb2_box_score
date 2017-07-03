@@ -320,8 +320,37 @@ post_message <- function(g) {
   
   embed <- format_embed(g, match_summary, is_clan)
   
+  message = ""
+  
+  #For clan league, add clan results to the posting as the 'content' field
+  if (is_clan) {
+    clan_1 <- g[['h_team']] %>% str_extract("\\[.*\\]")
+    clan_2 <- g[['a_team']] %>% str_extract("\\[.*\\]")
+    
+    clan_summary <- league_data$Clan %>% 
+      filter(ID > 0, round == g[['round']]) %>% 
+      mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = ifelse(h_score > a_score, h_clan, a_clan)) %>% 
+      group_by(winner) %>% 
+      summarise(n = n())
+    
+    clan_1_wins <- filter(clan_summary, winner == clan_1) %>% extract2("n")
+    if(length(clan_1_wins) == 0) clan_1_wins = 0
+    
+    clan_2_wins <- filter(clan_summary, winner == clan_2) %>% extract2("n")
+    if(length(clan_2_wins) == 0) clan_2_wins = 0
+    
+    clan_1_msg <- paste(clan_1,clan_1_wins)
+    if (length(clan_1_wins)>0 & clan_1_wins >= 3) clan_1_msg <- paste0("**",clan_1_msg,"**")
+    
+    clan_2_msg <- paste(clan_2_wins,clan_2)
+    if (length(clan_2_wins)>0 & clan_2_wins >= 3) clan_2_msg <- paste0("**",clan_2_msg,"**")
+    
+    message = paste0("Clan Results: ",clan_1_msg," V ",clan_2_msg)
+  }
+  
   # #Notify @here and users who have requested it
   # mention = function(user_id) {paste0("<@",user_id,">")}
+  # Check if clan summary has been posted first, and add a linebreak if so
   # 
   # if (exists("notifications")) {
   #   mentions = ""
@@ -333,9 +362,11 @@ post_message <- function(g) {
   #   mentions = ""
   # }
   
+  
+  
   log_message(paste("Posting update for",embed[[1]]$title, "uuid:", g[['uuid']], "competition:", g[['comp']], "grouping:",league, "league:", league_file))
   #print(embed)
-  response = POST(webhook[[league]], body = list(username = bot_usernames[[league]], avatar_url = bot_avatar[[league]], embeds = embed), encode = "json")
+  response = POST(webhook[[league]], body = list(username = bot_usernames[[league]], avatar_url = bot_avatar[[league]], content = message, embeds = embed), encode = "json")
   
   if (response$status_code == 429) { #rate-limited
     wait_time <- content(response)$retry_after
