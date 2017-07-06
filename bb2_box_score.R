@@ -59,6 +59,8 @@ get_league_data <- function(league_response) {
     set_colnames(c("comp","round","h_coach","h_team","h_img","score","a_img","a_team","a_coach")) %>% 
     separate(score,c("h_score","a_score")) %>% 
     filter(a_coach != "Coach 2")
+  
+  if(nrow(league_games)==0) return(NULL) # No games, don't process further
 
   #Add uuids from the [data] attribute of html nodes
   league_games$uuid <- response_content %>% 
