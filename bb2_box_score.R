@@ -38,7 +38,7 @@ if (testing) {
   } else { # default assumption is that this is private testing
     webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/326519810739666945/LVgkxHSSd_vs3d4To9chThqPyl-TLyN_smaKuc2WyBvwJtZ29AYXI9UbrW1hFGnh-ttk"))
   }
-  last_seen <- last_seen %>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 9))  
+  last_seen[last_seen %>% strtoi(base=16) %>% equals(0) %>% not] %<>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 8))  
 }
 
 #Get data for leagues
