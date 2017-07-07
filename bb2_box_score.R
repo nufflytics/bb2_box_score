@@ -17,9 +17,8 @@ testing = length(commandArgs(trailingOnly = T)) > 1
 
 platform_code <- c(pc=0,ps4=1,xb1=2)
 
-#load webhook info, last processed game, and API calls from file
+#load webhook info and API calls from file
 load(paste0("data/",league_file,"_parameters.Rda"))
-load(paste0("data/",league_file,"_last_seen.Rda"))
 load("data/api.Rda")
 
 #if parameters file doesn't have a platform, assume it's PC
@@ -28,17 +27,6 @@ load("data/api.Rda")
 if (!exists("platform")) {
   platform = list()
   platform[names(league_search_strings)] <- "pc"
-}
-
-if (testing) {
-  type <- commandArgs(trailingOnly = T)[2]
-  
-  if( type=="public")  { #test on my server where people can see it
-    webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
-  } else { # default assumption is that this is private testing
-    webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/326519810739666945/LVgkxHSSd_vs3d4To9chThqPyl-TLyN_smaKuc2WyBvwJtZ29AYXI9UbrW1hFGnh-ttk"))
-  }
-  last_seen[last_seen %>% strtoi(base=16) %>% equals(0) %>% not] %<>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 8))  
 }
 
 #Get data for leagues
@@ -83,6 +71,21 @@ filter_league_table <- function(league_table, last_game, league) {
   league_table %>% 
     filter(ID > strtoi(last_game, base=16)) %>% # Assume uuid are assigned in increasing order (appears to be the case)
     mutate(league = league) # adds league name for channel identification
+}
+
+#load last seen game and apply filter
+load(paste0("data/",league_file,"_last_seen.Rda"))
+
+# if we are only testing, adjust webhook and last_seen params as needed
+if (testing) {
+  type <- commandArgs(trailingOnly = T)[2]
+  
+  if( type=="public")  { #test on my server where people can see it
+    webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/314984670569693188/ySNOjupzvZIsielocZBqy7dJ2vKee6NjEqQ9zJdG226Os8TSNbx5OBlvBMOuAARVelgZ"))
+  } else { # default assumption is that this is private testing
+    webhook <- webhook %>% map(~inset(.,"https://discordapp.com/api/webhooks/326519810739666945/LVgkxHSSd_vs3d4To9chThqPyl-TLyN_smaKuc2WyBvwJtZ29AYXI9UbrW1hFGnh-ttk"))
+  }
+  last_seen[last_seen %>% strtoi(base=16) %>% equals(0) %>% not] %<>% map(~ strtoi(., base=16) %>% subtract(1) %>% as.hexmode() %>% format(width = 8))  
 }
 
 new_games <- map_df(
