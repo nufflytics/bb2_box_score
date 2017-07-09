@@ -59,8 +59,8 @@ get_league_data <- function(league_response) {
   
   # add numeric ID for easy comparison and remove concedes (a_score is NA after above processing)
   league_games %>% 
-    mutate(ID = strtoi(uuid, base = 16)) %>% 
-    filter(!is.na(a_score))
+    mutate(ID = strtoi(uuid, base = 16)) #%>% 
+    #filter(!is.na(a_score))
 }
 
 #For each league, process the division data into a df and bind them all together
@@ -278,8 +278,8 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
 
 format_embed <- function(g, stats_summary, clan = F) {
 
-  if (g[['h_score']] > g[['a_score']]) g[['h_team']] <- paste0("**", g[['h_team']], "**")
-  if (g[['a_score']] > g[['h_score']]) g[['a_team']] <- paste0("**", g[['a_team']], "**")
+  if (stats_summary$stats[[1,"home"]] > stats_summary$stats[[1,"away"]]) g[['h_team']] <- paste0("**", g[['h_team']], "**")
+  if (stats_summary$stats[[1,"away"]] > stats_summary$stats[[1,"home"]]) g[['a_team']] <- paste0("**", g[['a_team']], "**")
   
   #Work out team race from image urls
   g[['h_race']] <- g[["h_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
