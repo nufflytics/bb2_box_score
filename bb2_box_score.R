@@ -334,7 +334,7 @@ post_message <- function(g) {
     
     clan_summary <- league_data$Clan %>% 
       filter(ID > 0, round == g[['round']]) %>% 
-      mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = ifelse(h_score > a_score, toupper(h_clan), toupper(a_clan))) %>% 
+      mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = case_when(.$h_score>.$a_score ~ toupper(h_clan), .$a_score>.$h_score ~ toupper(a_clan), TRUE ~ "")) %>% 
       group_by(winner) %>% 
       summarise(n = n())
     
