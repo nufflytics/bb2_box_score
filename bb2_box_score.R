@@ -49,18 +49,18 @@ get_league_data <- function(league_response) {
     filter(a_coach != "Coach 2")
   
   if(nrow(league_games)==0) return(NULL) # No games, don't process further
-
+  
   #Add uuids from the [data] attribute of html nodes
   league_games$uuid <- response_content %>% 
     html_nodes("[data]") %>% 
     html_attr("data") %>% 
-    extract(seq(1,length(.),by=10)) %>% # have the uuid listed 10 times per table row, so just take one
+    magrittr::extract(seq(1,length(.),by=10)) %>% # have the uuid listed 10 times per table row, so just take one
     str_replace_all("^1[012]","") # strip initial 1<platform_code> from uuid so unrecorded games have ID = 0
   
   # add numeric ID for easy comparison and remove concedes (a_score is NA after above processing)
   league_games %>% 
     mutate(ID = strtoi(uuid, base = 16)) #%>% 
-    #filter(!is.na(a_score))
+  #filter(!is.na(a_score))
 }
 
 #For each league, process the division data into a df and bind them all together
@@ -219,7 +219,15 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
   
   #Construct injuries embed summary
   summarise_injury <- function(player) {
-    inj_sum <- sprintf("__%s__ *(%s)* : **%s**\n%s - %s SPP", player$name, player$type, player$injuries, player$skills, player$SPP+player$SPP_gain) %>%
+    if(nrow(player) == 0) return("")
+    
+    #Add permanent injuries to skills list if they didn't happen in this game 
+    player %<>% mutate(
+      old_perms = stringr::str_replace(perms, injuries, "")  %>% stringr::str_replace(", $", ""),
+      skills_with_perms = ifelse(!is.na(perms) & old_perms != "", stringr::str_c(skills, ", *",old_perms,"*"), skills)
+    )
+
+    inj_sum <- sprintf("__%s__ *(%s)* : **%s**\n%s  (%s SPP)", player$name, player$type, player$injuries, player$skills_with_perms, player$SPP+player$SPP_gain) %>%
       str_replace_all("\\*\\(Star Player\\)\\*", ":star:") %>% 
       paste0(collapse="\n\n")
     
@@ -246,15 +254,22 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
       injury_block <- str_c(injury_block, away_text)
     }
   }
-
+  
   
   #Construct level ups embed summary
   summarise_lvlups <- function(player) {
-    sprintf("__%s__ *(%s)* : **%i :arrow_right: %i SPP**\n%s", player$name, player$type, player$SPP, player$SPP+player$SPP_gain, player$skills) %>% 
+    if(nrow(player) == 0) return("")
+    
+    #Add permanent injuries to skills list 
+    player %<>% mutate(
+      skills_with_perms = ifelse(!is.na(perms), stringr::str_c(skills, ", *",perms,"*"), skills)
+    )
+    
+    sprintf("__%s__ *(%s)* : **%i :arrow_right: %i SPP**\n%s", player$name, player$type, player$SPP, player$SPP+player$SPP_gain, player$skills_with_perms) %>% 
       str_replace_all("\\*\\(Star Player\\)\\*", ":star:") %>% 
       paste0(collapse="\n\n") 
   }
-
+  
   lvlup_block = ""
   if (match_summary$level_ups %>% map_int(nrow) %>% sum %>% is_greater_than(0)) {
     lvl_summary <- match_summary$level_ups %>% map(summarise_lvlups)
@@ -277,7 +292,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
 }
 
 format_embed <- function(g, stats_summary, clan = F) {
-
+  
   if (stats_summary$stats[[1,"home"]] > stats_summary$stats[[1,"away"]]) g[['h_team']] <- paste0("**", g[['h_team']], "**")
   if (stats_summary$stats[[1,"away"]] > stats_summary$stats[[1,"home"]]) g[['a_team']] <- paste0("**", g[['a_team']], "**")
   
@@ -291,7 +306,7 @@ format_embed <- function(g, stats_summary, clan = F) {
       author = list(name  ="More details at BB2LM", url = paste0("http://www.bb2leaguemanager.com/Leaderboard/match_detail.php?match_uuid=1",platform_code[platform[[g[['league']]]]], g[['uuid']]))
     }
   }
-    
+  
   
   embed = list(
     list(
