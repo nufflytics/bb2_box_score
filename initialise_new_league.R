@@ -5,7 +5,17 @@ suppressPackageStartupMessages(library(magrittr))
 new_league <- function(league_abbreviation, file) {
   if(file.exists(paste0("data/",league_abbreviation,"_parameters.Rda"))) stop("League ", league_abbreviation, " already exists. Please delete and retry")
   
-  info <- read_csv(file, col_types = "ccccnccc")
+  info <- read_csv(file, col_types = "ccccnccc") %>% 
+    group_by(id) %>% 
+    summarise(
+      league_search_strings = list(league_search_strings) %>% as.vector,
+      webhook = first(webhook),
+      thumbnails = first(thumbnails),
+      colours = first(colours),
+      bot_usernames = first(bot_usernames),
+      bot_avatar = first(bot_avatar),
+      platform = first(platform)
+      )
   
   map_info <- function(values,keys) {
     values %>% as.list %>% set_names(keys)
