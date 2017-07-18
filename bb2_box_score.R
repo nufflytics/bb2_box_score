@@ -227,15 +227,16 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
       skills_with_perms = ifelse(!is.na(perms) & old_perms != "", stringr::str_c(skills, ", *",old_perms,"*"), skills)
     )
 
+    if(league_file == "REBBL" & !testing) {
+      player$injuries %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
+    } else {
+      player$injuries %<>% str_replace_all("Dead",":skull:")
+    }
+    
     inj_sum <- sprintf("__%s__ *(%s)* : **%s**\n%s  (%s SPP)", player$name, player$type, player$injuries, player$skills_with_perms, player$SPP+player$SPP_gain) %>%
       str_replace_all("\\*\\(Star Player\\)\\*", ":star:") %>% 
       paste0(collapse="\n\n")
     
-    if(league_file == "REBBL" & !testing) {
-      inj_sum %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
-    } else {
-      inj_sum %<>% str_replace_all("Dead",":skull:")
-    }
     
     inj_sum
   }
