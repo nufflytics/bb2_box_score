@@ -183,7 +183,7 @@ get_match_summary_pc <- function(uuid, platform) {
   
   level_ups <- players %>% map(~filter(., lvlup))
   
-  list(stats = stats, injuries=injuries, level_ups=level_ups)
+  list(stats = stats, injuries=injuries, level_ups=level_ups, TV = list(home = full_match_stats$RowMatch$homeValue, away = full_match_stats$RowMatch$awayValue))
 }
 
 format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
@@ -301,6 +301,39 @@ format_embed <- function(g, stats_summary, clan = F) {
   g[['h_race']] <- g[["h_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   g[['a_race']] <- g[["a_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   
+  REBBL_races =  function(r) {switch(r,
+    "Amazon" = "<:Zon:344918598286049281>",
+    "Bretonnia" = "<:Bret:344918238976802826>",
+    "Chaos" = "<:Chaos:344918252155305984>",
+    "Chaos Dwarf" = "<:Chorf:344918276121427968>",
+    "Dark Elf" = "<:Delf:344918286888337409>",
+    "Dwarf" = "<:Dorf:344918297084559360>",
+    "Elf" = "<:Pro:344918515817644033>",
+    "Goblin" = "<:Gobbo:344918318685224975>",
+    "Halfling" = "<:Fling:344918306236530698>",
+    "High Elf" = "<:Helf:344918331930705921>",
+    "Human" = "<:Human:344918344841035777>",
+    "Khemri" = "<:Khemri:344918363438579714>",
+    "Kislev" = "<:Kislev:344918385542299648>",
+    "Lizardmen" = "<:Lizard:344918404471455744>",
+    "Necromantic" = "<:Necro:344918417712611328>",
+    "Norse" = "<:Norse:344918434867314691>",
+    "Nurgle" = "<:Nurgle:344918450977898501>",
+    "Ogre" = "<:Ogre:344918473832660992>",
+    "Orc" = "<:Orc:344918500583800845>",
+    "Skaven" = "<:Rats:344918530531131403>",
+    "Undead" = "<:Undead:344918543974006788>",
+    "Underworld" = "<:UW:344918559417171970>",
+    "Vampire" = "<:Vamp:344918571853414400>",
+    "Wood Elf" = "<:Welf:344918583236755485>",
+    r
+  )}
+  
+  if (league_file == "REBBL") {
+    g[['h_race']] <- map_chr(g[['h_race']], REBBL_races)
+    g[['a_race']] <- map_chr(g[['a_race']], REBBL_races)
+  }
+  
   author = ""
   if (exists("BB2LM")) {
     if(BB2LM[[g[['league']]]]) {
@@ -309,12 +342,22 @@ format_embed <- function(g, stats_summary, clan = F) {
   }
   
   
+  format_description = function(g, stats, is_REBBL) {
+    if (is_REBBL) {
+      paste0(g[['h_race']]," ",g[['h_team']], " V ", g[['a_team']], " ", g[['a_race']], "\n",
+             stats$TV$home," V ",stats$TV$away, " TV\n",
+             "*", g[['comp']],"*")
+    } else {
+      paste0(g[['h_team']], " V ", g[['a_team']], "\n",
+             "TV ",stats$TV$home," ",g[['h_race']], " V ", g[['a_race']], " ",stats$TV$away," TV", "\n",
+             "*", g[['comp']],"*")
+    }
+  }
+  
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
-      description = paste0(g[['h_team']], " V ", g[['a_team']], "\n",
-                           g[['h_race']], " V ", g[['a_race']], "\n",
-                           "*", g[['comp']],"*"),
+      description = format_description(g, stats_summary, is_REBBL = league_file == "REBBL"),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=1",platform_code[platform[[g[['league']]]]], g[['uuid']]),
       #thumbnail = list(url = thumbnails[[g[['league']]]] ),
       author = author,
@@ -344,30 +387,30 @@ post_message <- function(g) {
   message = ""
   
   #For clan league, add clan results to the posting as the 'content' field
-  if (is_clan) {
-    clan_1 <- g[['h_team']] %>% str_extract("\\[.*\\]")
-    clan_2 <- g[['a_team']] %>% str_extract("\\[.*\\]")
-    
-    clan_summary <- league_data$Clan %>% 
-      filter(ID > 0, round == g[['round']]) %>% 
-      mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = case_when(.$h_score>.$a_score ~ toupper(h_clan), .$a_score>.$h_score ~ toupper(a_clan), TRUE ~ "")) %>% 
-      group_by(winner) %>% 
-      summarise(n = n())
-    
-    clan_1_wins <- filter(clan_summary, winner == toupper(clan_1)) %>% extract2("n")
-    if(length(clan_1_wins) == 0) clan_1_wins = 0
-    
-    clan_2_wins <- filter(clan_summary, winner == toupper(clan_2)) %>% extract2("n")
-    if(length(clan_2_wins) == 0) clan_2_wins = 0
-    
-    clan_1_msg <- paste(clan_1,clan_1_wins)
-    if (length(clan_1_wins)>0 & clan_1_wins >= 3) clan_1_msg <- paste0("**",clan_1_msg,"**")
-    
-    clan_2_msg <- paste(clan_2_wins,clan_2)
-    if (length(clan_2_wins)>0 & clan_2_wins >= 3) clan_2_msg <- paste0("**",clan_2_msg,"**")
-    
-    message = paste0("__Clan Results__: ",clan_1_msg," V ",clan_2_msg)
-  }
+  # if (is_clan) {
+  #   clan_1 <- g[['h_team']] %>% str_extract("\\[.*\\]")
+  #   clan_2 <- g[['a_team']] %>% str_extract("\\[.*\\]")
+  #   
+  #   clan_summary <- league_data$Clan %>% 
+  #     filter(ID > 0, round == g[['round']]) %>% 
+  #     mutate(h_clan = h_team %>% str_extract("\\[.*\\]"), a_clan = a_team %>% str_extract("\\[.*\\]"), winner = case_when(.$h_score>.$a_score ~ toupper(h_clan), .$a_score>.$h_score ~ toupper(a_clan), TRUE ~ "")) %>% 
+  #     group_by(winner) %>% 
+  #     summarise(n = n())
+  #   
+  #   clan_1_wins <- filter(clan_summary, winner == toupper(clan_1)) %>% extract2("n")
+  #   if(length(clan_1_wins) == 0) clan_1_wins = 0
+  #   
+  #   clan_2_wins <- filter(clan_summary, winner == toupper(clan_2)) %>% extract2("n")
+  #   if(length(clan_2_wins) == 0) clan_2_wins = 0
+  #   
+  #   clan_1_msg <- paste(clan_1,clan_1_wins)
+  #   if (length(clan_1_wins)>0 & clan_1_wins >= 3) clan_1_msg <- paste0("**",clan_1_msg,"**")
+  #   
+  #   clan_2_msg <- paste(clan_2_wins,clan_2)
+  #   if (length(clan_2_wins)>0 & clan_2_wins >= 3) clan_2_msg <- paste0("**",clan_2_msg,"**")
+  #   
+  #   message = paste0("__Clan Results__: ",clan_1_msg," V ",clan_2_msg)
+  # }
   
   # #Notify @here and users who have requested it
   # mention = function(user_id) {paste0("<@",user_id,">")}
