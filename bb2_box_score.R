@@ -121,9 +121,11 @@ abbr <- function(name, clan = FALSE) {
 
 
 get_match_summary <- function(uuid, platform) {
-  if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
+  #if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
   
   full_match_stats <- POST(modify_url("http://bb2leaguemanager.com/Leaderboard/get_matchdata.php", query = list("match_uuid" = str_c("1", platform_code[platform], uuid), "platform" = platform))) %>% content(as="parsed",type="application/json")
+  
+  if (full_match_stats$match$teams[[1]]$mvp == 0 | full_match_stats$match$teams[[2]]$mvp == 0 | full_match_stats$match$teams[[1]]$nbsupporters == 0) return(NULL)
   
   stats_to_collect <- c(
     TD = "inflictedtouchdowns",
@@ -144,7 +146,7 @@ get_match_summary <- function(uuid, platform) {
     away = extract(full_match_stats$match$teams[[2]],stats_to_collect) %>% as.integer()
   )
   
-  list(stats=stats,injuries=data_frame(), level_ups = data_frame())
+  list(stats=stats,injuries=data_frame(), level_ups = data_frame(), TV = list(home = full_match_stats$teams[[1]]$value, away = full_match_stats$teams[[2]]$value))
 }
 
 get_match_summary_pc <- function(uuid, platform) {
