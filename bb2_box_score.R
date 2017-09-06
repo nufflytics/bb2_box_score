@@ -121,7 +121,7 @@ abbr <- function(name, clan = FALSE) {
 
 
 get_match_summary <- function(uuid, platform) {
-  #if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
+  if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
   
   full_match_stats <- POST(modify_url("http://bb2leaguemanager.com/Leaderboard/get_matchdata.php", query = list("match_uuid" = str_c("1", platform_code[platform], uuid), "platform" = platform))) %>% content(as="parsed",type="application/json")
   
