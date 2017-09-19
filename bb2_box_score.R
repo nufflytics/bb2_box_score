@@ -332,8 +332,8 @@ format_embed <- function(g, stats_summary, clan = F) {
   )}
   
   if (league_file == "REBBL") {
-    g[['h_race']] <- map_chr(g[['h_race']], REBBL_races)
-    g[['a_race']] <- map_chr(g[['a_race']], REBBL_races)
+    g[['h_race']] <- paste(g[['h_race']],map_chr(g[['h_race']], REBBL_races))
+    g[['a_race']] <- paste(map_chr(g[['a_race']], REBBL_races),g[['a_race']])
   }
   
   author = ""
@@ -344,22 +344,17 @@ format_embed <- function(g, stats_summary, clan = F) {
   }
   
   
-  format_description = function(g, stats, is_REBBL) {
-    if (is_REBBL) {
-      paste0(g[['h_race']]," ",g[['h_team']], " V ", g[['a_team']], " ", g[['a_race']], "\n",
-             stats$TV$home," V ",stats$TV$away, " TV\n",
-             "*", g[['comp']],"*")
-    } else {
-      paste0(g[['h_team']], " V ", g[['a_team']], "\n",
-             "TV ",stats$TV$home," ",g[['h_race']], " V ", g[['a_race']], " ",stats$TV$away," TV", "\n",
-             "*", g[['comp']],"*")
-    }
+  format_description = function(g, stats) {
+    paste0(g[['h_team']], " V ", g[['a_team']], "\n",
+           "TV ",stats$TV$home," ",g[['h_race']], " V ", g[['a_race']], " ",stats$TV$away," TV", "\n",
+           "*", g[['comp']],"*")
+    
   }
   
   embed = list(
     list(
       title = paste0(g[['h_coach']], " V ",g[['a_coach']]),
-      description = format_description(g, stats_summary, is_REBBL = league_file == "REBBL"),
+      description = format_description(g, stats_summary),
       url = paste0("http://www.mordrek.com/goblinSpy/web/game.html?mid=1",platform_code[platform[[g[['league']]]]], g[['uuid']]),
       #thumbnail = list(url = thumbnails[[g[['league']]]] ),
       author = author,
