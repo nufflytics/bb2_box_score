@@ -2,8 +2,7 @@ suppressPackageStartupMessages(library(readr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(magrittr))
 
-new_league <- function(league_abbreviation, file) {
-  if(file.exists(paste0("data/",league_abbreviation,"_parameters.Rda"))) stop("League ", league_abbreviation, " already exists. Please delete and retry")
+new_league <- function(league_abbreviation, file, update) {
   
   info <- read_csv(file, col_types = "ccccnccc") %>% 
     group_by(id) %>% 
@@ -15,7 +14,7 @@ new_league <- function(league_abbreviation, file) {
       bot_usernames = first(bot_usernames),
       bot_avatar = first(bot_avatar),
       platform = first(platform)
-      )
+    )
   
   map_info <- function(values,keys) {
     values %>% as.list %>% set_names(keys)
@@ -28,12 +27,22 @@ new_league <- function(league_abbreviation, file) {
   bot_usernames <- with(info, map_info(bot_usernames, id))
   bot_avatar <- with(info, map_info(bot_avatar, id))
   platform <- with(info, map_info(platform, id))
-
+  
+  # new entries can't overwrite existing ones
+  if(!update & file.exists(paste0("data/",league_abbreviation,"_parameters.Rda"))) {
+    stop("League ", league_abbreviation, " already exists. Did you mean to update?")
+  }
+  
   save(list = c("league_search_strings","webhook","thumbnails","colours", "bot_usernames", "bot_avatar", "platform"), file = paste0("data/",league_abbreviation,"_parameters.Rda"))
   cat(paste0("Saving league parameters to 'data/",league_abbreviation,"_parameters.Rda'\n"))
   
-  last_seen <- list()
-  last_seen[info$id] <- "00001000"
+  if(update) {
+    load(paste0("data/",league_abbreviation,"_last_seen.Rda"))
+  } else {
+    last_seen = list()
+  }
+  
+  last_seen[info$id[! info$id %in% names(last_seen)] ] <- "00001000"
   
   save(last_seen, file = paste0("data/",league_abbreviation,"_last_seen.Rda") )
   
@@ -42,4 +51,8 @@ new_league <- function(league_abbreviation, file) {
 
 sys_arg <- commandArgs(trailingOnly = TRUE)
 
-new_league(sys_arg[1], sys_arg[2])
+if (length(sys_arg) == 3 & sys_arg[3] == "update") {
+  new_league(sys_arg[1], sys_arg[2], update = T)
+} else {
+  new_league(sys_arg[1], sys_arg[2], update = F)
+}
