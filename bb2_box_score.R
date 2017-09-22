@@ -120,6 +120,32 @@ abbr <- function(name, clan = FALSE) {
 }
 
 
+calc_bog <- function(player_result,race, uuid) {
+  data_frame(
+    match_uuid = uuid,
+    Name = player_result$playerData$name,
+    Level = player_result$playerData$level,
+    Race = race,
+    Type = nufflytics::id_to_playertype(player_result$playerData$idPlayerType),
+    Played = player_result$statistics$matchPlayed,
+    playerID = player_result$statistics$idPlayerListing,
+    SPP_gain = player_result$xp,
+    blk = player_result$statistics$inflictedTackles,
+    AVBr = player_result$statistics$inflictedInjuries,
+    KO = player_result$statistics$inflictedKO,
+    CAS = player_result$statistics$inflictedCasualties,
+    Kills = player_result$statistics$inflictedDead,
+    TD = player_result$statistics$inflictedTouchdowns,
+    Pass = player_result$statistics$inflictedPasses,
+    Pass_m = player_result$statistics$inflictedMetersPassing * (Pass>0), # Odd bug where players could get pass yards without passing
+    Catch = player_result$statistics$inflictedCatches,
+    Int = player_result$statistics$inflictedInterceptions,
+    Carry_m = player_result$statistics$inflictedMetersRunning,
+    surf = player_result$statistics$inflictedPushOuts,
+    BoG = ceiling(blk/5)+ceiling(AVBr/2)+KO+CAS+(2*Kills)+(2*surf)+(3*TD)+(2*Pass)+ceiling(Pass_m/20)+(2*Catch)+(5*Int)+ceiling(Carry_m/50)
+  )
+}
+
 get_match_summary <- function(uuid, platform) {
   if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
   
@@ -185,10 +211,19 @@ get_match_summary_pc <- function(uuid, platform) {
   
   level_ups <- players %>% map(~filter(., lvlup))
   
-  list(stats = stats, injuries=injuries, level_ups=level_ups, TV = list(home = full_match_stats$RowMatch$homeValue, away = full_match_stats$RowMatch$awayValue))
+  ## Best on Ground stats
+  home = full_match_stats$MatchResultDetails$coachResults[[1]]$teamResult$playerResults
+  away = full_match_stats$MatchResultDetails$coachResults[[2]]$teamResult$playerResults
+  bog <- map2_df(
+    c(home,away), 
+    rep(c(nufflytics::id_to_race(full_match_stats$RowMatch$idRacesHome),nufflytics::id_to_race(full_match_stats$RowMatch$idRacesAway)), c(length(home),length(away))),
+    ~calc_bog(.x, .y, uuid)
+  )
+  
+  list(stats = stats, injuries=injuries, level_ups=level_ups, TV = list(home = full_match_stats$RowMatch$homeValue, away = full_match_stats$RowMatch$awayValue), bog = bog)
 }
 
-format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
+format_embed_fields <- function(match_summary, hometeam, awayteam, comp, clan = F) {
   #extract specific stat from stats table
   get_stat <- function(data, s, t) {
     data %>% filter(stat == s) %>% extract2(t)
@@ -228,7 +263,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
       old_perms = stringr::str_replace(perms, injuries, "")  %>% stringr::str_replace(", $", ""),
       skills_with_perms = ifelse(!is.na(perms) & old_perms != "", stringr::str_c(skills, ", *",old_perms,"*"), skills)
     )
-
+    
     if(league_file == "REBBL" & !testing) {
       player$injuries %<>% str_replace_all("Dead","<:Dead:311936561069555712>")
     } else {
@@ -287,9 +322,25 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, clan = F) {
     }
   }
   
+  ## BoG for Fantasy points
+  best_3 = match_summary$bog %>% arrange(desc(BoG),desc(SPP_gain), rnorm(nrow(.))) %>% head(3)
+  
+  BoG_block = with(
+    best_3, 
+    sprintf(
+      "__%s__ *(%s)*: **%d Fantasy Points**\nBLK:%d, AVBr:%d, KO:%d, CAS:%d, KILL:%d, Pass:%d (%dm), Catch:%d, Int:%d, Surf:%d, Carry:%dm, TD:%d", 
+      Name, Type, BoG, blk, AVBr, KO, CAS, Kills, Pass, Pass_m, Catch, Int, surf, Carry_m, TD)
+  ) %>%  
+    str_replace_all("(, )?(BLK|AVBr|KO|CAS|KILL|Catch|Int|Surf|Carry|TD):0m?", "") %>% 
+    str_replace_all("(, )?Pass:0 \\(.{1,}m\\)", "") %>%
+    str_replace("\n, ", "\n") %>% 
+    str_c(collapse="\n\n")
+  
   fields <- list(list(name = "__**Game Stats**__", value = stat_block, inline = T))
   if(nchar(injury_block)>0) fields %<>% append(list(list(name = "__**Injury Report**__", value = injury_block, inline = T)))
   if(nchar(lvlup_block)>0) fields %<>% append(list(list(name = "__**Player Development**__", value = lvlup_block, inline = T)))
+  
+  if (comp %in% c("REL", "Gman", "BigO", "GC", "OI")) fields %<>% append(list(list(name = "__**Best on Ground**__", value = BoG_block, inline = T)))
   
   fields
 }
@@ -304,31 +355,31 @@ format_embed <- function(g, stats_summary, clan = F) {
   g[['a_race']] <- g[["a_img"]] %>% str_replace(".*Picto_","") %>% str_replace("\\.png","") %>% str_replace("(.)([A-Z])", "\\1 \\2")
   
   REBBL_races =  function(r) {switch(r,
-    "Amazon" = "<:Zon:344918598286049281>",
-    "Bretonnia" = "<:Bret:344918238976802826>",
-    "Chaos" = "<:Chaos:344918252155305984>",
-    "Chaos Dwarf" = "<:Chorf:344918276121427968>",
-    "Dark Elf" = "<:Delf:344918286888337409>",
-    "Dwarf" = "<:Dorf:344918297084559360>",
-    "Pro Elf" = "<:Pro:344918515817644033>",
-    "Goblin" = "<:Gobbo:344918318685224975>",
-    "Halfling" = "<:Fling:344918306236530698>",
-    "High Elf" = "<:Helf:344918331930705921>",
-    "Human" = "<:Human:344918344841035777>",
-    "Khemri" = "<:Khemri:344918363438579714>",
-    "Kislev" = "<:Kislev:344918385542299648>",
-    "Lizardman" = "<:Lizard:344918404471455744>",
-    "Necromantic" = "<:Necro:344918417712611328>",
-    "Norse" = "<:Norse:344918434867314691>",
-    "Nurgle" = "<:Nurgle:344918450977898501>",
-    "Ogre" = "<:Ogre:344918473832660992>",
-    "Orc" = "<:Orc:344918500583800845>",
-    "Skaven" = "<:Rats:344918530531131403>",
-    "Undead" = "<:Undead:344918543974006788>",
-    "Underworld" = "<:UW:344918559417171970>",
-    "Vampire" = "<:Vamp:344918571853414400>",
-    "Wood Elf" = "<:Welf:344918583236755485>",
-    r
+                                     "Amazon" = "<:Zon:344918598286049281>",
+                                     "Bretonnia" = "<:Bret:344918238976802826>",
+                                     "Chaos" = "<:Chaos:344918252155305984>",
+                                     "Chaos Dwarf" = "<:Chorf:344918276121427968>",
+                                     "Dark Elf" = "<:Delf:344918286888337409>",
+                                     "Dwarf" = "<:Dorf:344918297084559360>",
+                                     "Pro Elf" = "<:Pro:344918515817644033>",
+                                     "Goblin" = "<:Gobbo:344918318685224975>",
+                                     "Halfling" = "<:Fling:344918306236530698>",
+                                     "High Elf" = "<:Helf:344918331930705921>",
+                                     "Human" = "<:Human:344918344841035777>",
+                                     "Khemri" = "<:Khemri:344918363438579714>",
+                                     "Kislev" = "<:Kislev:344918385542299648>",
+                                     "Lizardman" = "<:Lizard:344918404471455744>",
+                                     "Necromantic" = "<:Necro:344918417712611328>",
+                                     "Norse" = "<:Norse:344918434867314691>",
+                                     "Nurgle" = "<:Nurgle:344918450977898501>",
+                                     "Ogre" = "<:Ogre:344918473832660992>",
+                                     "Orc" = "<:Orc:344918500583800845>",
+                                     "Skaven" = "<:Rats:344918530531131403>",
+                                     "Undead" = "<:Undead:344918543974006788>",
+                                     "Underworld" = "<:UW:344918559417171970>",
+                                     "Vampire" = "<:Vamp:344918571853414400>",
+                                     "Wood Elf" = "<:Welf:344918583236755485>",
+                                     r
   )}
   
   if (league_file == "REBBL") {
@@ -362,7 +413,7 @@ format_embed <- function(g, stats_summary, clan = F) {
       #image = list(url = thumbnails[[g[['league']]]], height = 50, width = 50),
       color = colours[[g[['league']]]],
       #timestamp = Sys.time() %>% lubridate::ymd_hms(tz = "Australia/Sydney"),
-      fields = format_embed_fields(stats_summary, str_replace_all(g[['h_team']], "[*]",""), str_replace_all(g[['a_team']], "[*]",""), clan)
+      fields = format_embed_fields(stats_summary, str_replace_all(g[['h_team']], "[*]",""), str_replace_all(g[['a_team']], "[*]",""), g[['league']], clan)
     )
   )
   
