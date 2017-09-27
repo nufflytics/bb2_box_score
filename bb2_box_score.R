@@ -120,10 +120,11 @@ abbr <- function(name, clan = FALSE) {
 }
 
 
-calc_bog <- function(player_result,race, uuid) {
+calc_bog <- function(player_result,race, team, uuid) {
   data_frame(
     match_uuid = uuid,
     Name = player_result$playerData$name,
+    Team = abbr(team, F),
     Level = player_result$playerData$level,
     Race = race,
     Type = nufflytics::id_to_playertype(player_result$playerData$idPlayerType),
@@ -216,10 +217,14 @@ get_match_summary_pc <- function(uuid, platform, is_REBBL) {
   away = full_match_stats$MatchResultDetails$coachResults[[2]]$teamResult$playerResults
   bog = data_frame
   if(is_REBBL){
-    bog <- map2_df(
-      c(home,away), 
-      rep(c(nufflytics::id_to_race(full_match_stats$RowMatch$idRacesHome),nufflytics::id_to_race(full_match_stats$RowMatch$idRacesAway)), c(length(home),length(away))),
-      ~calc_bog(.x, .y, uuid)
+    bog <- purrr::pmap_df(
+      list(
+        c(home,away), 
+        rep(c(nufflytics::id_to_race(full_match_stats$RowMatch$idRacesHome),nufflytics::id_to_race(full_match_stats$RowMatch$idRacesAway)), c(length(home),length(away))),
+        rep(c(full_match_stats$RowMatch$teamHomeName,full_match_stats$RowMatch$teamAwayName), c(length(home),length(away))),
+        uuid
+      ),
+      calc_bog
     )
   }
   list(stats = stats, injuries=injuries, level_ups=level_ups, TV = list(home = full_match_stats$RowMatch$homeValue, away = full_match_stats$RowMatch$awayValue), bog = bog)
@@ -332,8 +337,8 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, comp, clan = 
     BoG_block = with(
       best_3, 
       sprintf(
-        "__%s__ *(%s)*: **%d Fantasy Points**\nBLK:%d, AVBr:%d, KO:%d, CAS:%d, KILL:%d, Pass:%d (%dm), Catch:%d, Int:%d, Surf:%d, Carry:%dm, TD:%d", 
-        Name, Type, BoG, blk, AVBr, KO, CAS, Kills, Pass, Pass_m, Catch, Int, surf, Carry_m, TD)
+        "__%s__ *(%s - %s)*: **%d Fantasy Points**\nBLK:%d, AVBr:%d, KO:%d, CAS:%d, KILL:%d, Pass:%d (%dm), Catch:%d, Int:%d, Surf:%d, Carry:%dm, TD:%d", 
+        Name, Team, Type, BoG, blk, AVBr, KO, CAS, Kills, Pass, Pass_m, Catch, Int, surf, Carry_m, TD)
     ) %>%  
       str_replace_all("(, )?(BLK|AVBr|KO|CAS|KILL|Catch|Int|Surf|Carry|TD):0m?", "") %>% 
       str_replace_all("(, )?Pass:0 \\(.{1,}m\\)", "") %>%
