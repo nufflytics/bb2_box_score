@@ -146,8 +146,8 @@ calc_bog <- function(player_result,race, uuid) {
   )
 }
 
-get_match_summary <- function(uuid, platform) {
-  if(platform == "pc") return(get_match_summary_pc(uuid, "pc"))
+get_match_summary <- function(uuid, platform, is_REBBL) {
+  if(platform == "pc") return(get_match_summary_pc(uuid, "pc", is_REBBL))
   
   full_match_stats <- POST(modify_url("http://bb2leaguemanager.com/Leaderboard/get_matchdata.php", query = list("match_uuid" = str_c("1", platform_code[platform], uuid), "platform" = platform))) %>% content(as="parsed",type="application/json")
   
@@ -175,7 +175,7 @@ get_match_summary <- function(uuid, platform) {
   list(stats=stats,injuries=data_frame(), level_ups = data_frame(), TV = list(home = full_match_stats$teams[[1]]$value, away = full_match_stats$teams[[2]]$value))
 }
 
-get_match_summary_pc <- function(uuid, platform) {
+get_match_summary_pc <- function(uuid, platform, is_REBBL) {
   full_match_stats <- nufflytics::get_game_stats(uuid, platform)
   
   #homeNbSupporters == 0 is an admin concede. idMatchCompletionStatus != 0 is a regular concede
@@ -214,12 +214,14 @@ get_match_summary_pc <- function(uuid, platform) {
   ## Best on Ground stats
   home = full_match_stats$MatchResultDetails$coachResults[[1]]$teamResult$playerResults
   away = full_match_stats$MatchResultDetails$coachResults[[2]]$teamResult$playerResults
-  bog <- map2_df(
-    c(home,away), 
-    rep(c(nufflytics::id_to_race(full_match_stats$RowMatch$idRacesHome),nufflytics::id_to_race(full_match_stats$RowMatch$idRacesAway)), c(length(home),length(away))),
-    ~calc_bog(.x, .y, uuid)
-  )
-  
+  bog = data_frame
+  if(is_REBBL){
+    bog <- map2_df(
+      c(home,away), 
+      rep(c(nufflytics::id_to_race(full_match_stats$RowMatch$idRacesHome),nufflytics::id_to_race(full_match_stats$RowMatch$idRacesAway)), c(length(home),length(away))),
+      ~calc_bog(.x, .y, uuid)
+    )
+  }
   list(stats = stats, injuries=injuries, level_ups=level_ups, TV = list(home = full_match_stats$RowMatch$homeValue, away = full_match_stats$RowMatch$awayValue), bog = bog)
 }
 
@@ -322,19 +324,22 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, comp, clan = 
     }
   }
   
-  ## BoG for Fantasy points
-  best_3 = match_summary$bog %>% arrange(desc(BoG),desc(SPP_gain), rnorm(nrow(.))) %>% head(3)
-  
-  BoG_block = with(
-    best_3, 
-    sprintf(
-      "__%s__ *(%s)*: **%d Fantasy Points**\nBLK:%d, AVBr:%d, KO:%d, CAS:%d, KILL:%d, Pass:%d (%dm), Catch:%d, Int:%d, Surf:%d, Carry:%dm, TD:%d", 
-      Name, Type, BoG, blk, AVBr, KO, CAS, Kills, Pass, Pass_m, Catch, Int, surf, Carry_m, TD)
-  ) %>%  
-    str_replace_all("(, )?(BLK|AVBr|KO|CAS|KILL|Catch|Int|Surf|Carry|TD):0m?", "") %>% 
-    str_replace_all("(, )?Pass:0 \\(.{1,}m\\)", "") %>%
-    str_replace("\n, ", "\n") %>% 
-    str_c(collapse="\n\n")
+  ## BoG for Fantasy points (only for REBBL matches) -----
+  BoG_block = data_frame()
+  if (league_file == "REBBL") {
+    best_3 = match_summary$bog %>% arrange(desc(BoG),desc(SPP_gain), rnorm(nrow(.))) %>% head(3)
+    
+    BoG_block = with(
+      best_3, 
+      sprintf(
+        "__%s__ *(%s)*: **%d Fantasy Points**\nBLK:%d, AVBr:%d, KO:%d, CAS:%d, KILL:%d, Pass:%d (%dm), Catch:%d, Int:%d, Surf:%d, Carry:%dm, TD:%d", 
+        Name, Type, BoG, blk, AVBr, KO, CAS, Kills, Pass, Pass_m, Catch, Int, surf, Carry_m, TD)
+    ) %>%  
+      str_replace_all("(, )?(BLK|AVBr|KO|CAS|KILL|Catch|Int|Surf|Carry|TD):0m?", "") %>% 
+      str_replace_all("(, )?Pass:0 \\(.{1,}m\\)", "") %>%
+      str_replace("\n, ", "\n") %>% 
+      str_c(collapse="\n\n")
+  }
   
   fields <- list(list(name = "__**Game Stats**__", value = stat_block, inline = T))
   if(nchar(injury_block)>0) fields %<>% append(list(list(name = "__**Injury Report**__", value = injury_block, inline = T)))
@@ -425,7 +430,7 @@ format_embed <- function(g, stats_summary, clan = F) {
 post_message <- function(g) {
   league = g[['league']]
   is_clan <- league == "Clan"
-  match_summary <- get_match_summary(g[['uuid']], platform[[league]])
+  match_summary <- get_match_summary(g[['uuid']], platform[[league]], league_file == "REBBL")
   
   #summary will return null if game decided by admin result or concede. Don't post those.
   if (is.null(match_summary)) return(NULL)
