@@ -347,7 +347,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, comp, clan = 
   }
   
   #Impact players for TBBL LE Invitational
-  if (league_file == "TBBL") {
+  if (league_file %in% c("TBBL","NAF")) {
     best_3 = match_summary$bog %>% arrange(desc(BoG),desc(SPP_gain), rnorm(nrow(.))) %>% head(3)
     
     BoG_block = with(
@@ -367,7 +367,7 @@ format_embed_fields <- function(match_summary, hometeam, awayteam, comp, clan = 
   if(nchar(lvlup_block)>0) fields %<>% append(list(list(name = "__**Player Development**__", value = lvlup_block, inline = T)))
   
   if (comp %in% c("REL", "Gman", "BigO")) fields %<>% append(list(list(name = "__**Best on Ground**__", value = BoG_block, inline = T)))
-  if (comp %in% c("LEInv")) fields %<>% append(list(list(name = "__**Impact Players**__", value = BoG_block, inline = T)))
+  if (comp %in% c("LEInv","NAF_ladder")) fields %<>% append(list(list(name = "__**Impact Players**__", value = BoG_block, inline = T)))
   
   
   fields
@@ -453,7 +453,7 @@ format_embed <- function(g, stats_summary, clan = F) {
 post_message <- function(g) {
   league = g[['league']]
   is_clan <- league == "Clan"
-  match_summary <- get_match_summary(g[['uuid']], platform[[league]], needs_BoG = league_file %in% c("REBBL","TBBL"))
+  match_summary <- get_match_summary(g[['uuid']], platform[[league]], needs_BoG = league_file %in% c("REBBL","TBBL","NAF"))
   
   #summary will return null if game decided by admin result or concede. Don't post those.
   if (is.null(match_summary)) return(NULL)
